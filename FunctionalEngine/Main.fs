@@ -1,7 +1,6 @@
 ﻿open Pokemon.Effects
 
 type PlayerId = string
-type State    = Map<PlayerId,int>
 
 type Effect =
   | Damage of player: PlayerId * amount: int
@@ -11,22 +10,33 @@ type Event =
   | DamageResolved of player: PlayerId * amount: int
   | HealResolved of player: PlayerId * amount: int
 
+type State = 
+    {
+        PlayerMap: Map<PlayerId, int>
+        Modifiers: IEffectModifier<Effect> list
+        Triggers: IEventTrigger<Effect, Event> list
+    }
+    interface IGameState<Effect, Event> with
+        member this.Modifiers = this.Modifiers
+        member this.Triggers = this.Triggers
+
 let validate_effect (effect: Effect) (state: State) : bool =
-  let playerExists pid = Map.containsKey pid state
+  let playerExists pid = Map.containsKey pid state.PlayerMap
   match effect with
   | Damage (pid, amt)
   | Heal   (pid, amt) ->
       playerExists pid && amt >= 0
 
-let apply_effect (effect: Effect) (state: State) : State * Event =
+let apply_effect (effect: Effect) (state: State) : State * Event list =
   match effect with
   | Damage (pid, amt) ->
-      // safe because we assume validate_effect was true
-      let cur = state[pid]
-      state.Add(pid, cur - amt), DamageResolved(pid, amt)
+      let cur = state.PlayerMap[pid]
+      let pmap = state.PlayerMap |> Map.add pid (cur - amt)
+      { state with PlayerMap = pmap }, [DamageResolved(pid, amt)]
   | Heal (pid, amt) ->
-      let cur = state[pid]
-      state.Add(pid, cur + amt), HealResolved(pid, amt)
+      let cur = state.PlayerMap[pid]
+      let pmap = state.PlayerMap |> Map.add pid (cur + amt)
+      { state with PlayerMap = pmap }, [HealResolved(pid, amt)]
 
 // Provide a utility method to reduce verbosity
 let curry_eval = eval_effect validate_effect apply_effect
@@ -42,10 +52,10 @@ let bind (res: EffectResult<'state,'event>)
         | InvalidChain -> InvalidChain
         | ValidChain (s2, evs2) -> ValidChain (s2, evs @ evs2)
 
-let runChain modifiers triggers state effects =
+let runChain state effects =
     effects
     |> List.fold (fun acc eff ->
-        bind acc (fun s -> curry_eval modifiers triggers s eff)
+        bind acc (fun s -> curry_eval s eff)
     ) (ValidChain (state, []))
 
 // Modifier Definitions
@@ -88,19 +98,25 @@ let siphonHeal = SiphonHeal("siphon", "Alice", "Bob", 0.25)
 let reflectDamage = ReflectDamage("reflect", "Alice", "Bob", 0.5)
 let reflectDamage2 = ReflectDamage("reflect2", "Bob", "Alice", 0.5)
 
-// State Definition
+// State Construction
 
-let state : State =
-    [ "Alice", 100
-      "Bob"  , 100 ]
-    |> Map.ofList
+let initialState = {
+    PlayerMap = [
+        "Alice", 100
+        "Bob", 100 ]
+        |> Map.ofList
+    Modifiers = [siphonHeal]
+    Triggers = [reflectDamage; reflectDamage2]
+}
 
 // Effect Construction
 
 let effect1 = Heal("Alice", 30)
 let effect2 = Damage("Bob", 50)
 
-match runChain [siphonHeal] [reflectDamage; reflectDamage2] state [effect1; effect2] with
+// State Execution
+
+match runChain initialState [effect1; effect2] with
 | InvalidChain -> printfn "INVALID"
 | ValidChain (s, evs) ->
     printfn "Final: %A" s
