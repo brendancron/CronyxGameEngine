@@ -11,6 +11,10 @@ module Effects =
         abstract member Id : string
         abstract member OnEvent : 'event -> 'eff list
 
+    type IGameState<'eff, 'event> = 
+        abstract member Modifiers: IEffectModifier<'eff> list
+        abstract member Triggers: IEventTrigger<'eff, 'event> list
+
     type TaggedEffect<'eff> = {
         Effect : 'eff
         Provenance : Set<string> }
@@ -29,46 +33,46 @@ module Effects =
             ) (tagged.Effect, [])
         { Effect = finalEff; Provenance = tagged.Provenance }, List.rev spawnedRev
 
-    let trigger_spawns (triggers: IEventTrigger<'eff,'event> list) (origin: TaggedEffect<'eff>) (event:'event) =
-        triggers
-        |> List.collect (fun t ->
-            if origin.Provenance.Contains t.Id then []
-            else
-                t.OnEvent event
-                |> List.map (fun e ->
-                    { Effect = e; Provenance = origin.Provenance.Add t.Id }))
+    let trigger_spawns (triggers: IEventTrigger<'eff,'event> list) (origin: TaggedEffect<'eff>) (events:'event list) =
+        events
+        |> List.collect (fun event ->
+            triggers
+            |> List.collect (fun t ->
+                if origin.Provenance.Contains t.Id then []
+                else
+                    t.OnEvent event
+                    |> List.map (fun e ->
+                        { Effect = e; Provenance = origin.Provenance.Add t.Id })))
 
     type StepResult<'state, 'eff, 'event> = 
         | InvalidStep
-        | ValidStep of state:'state * event:'event * modifierSpawns:TaggedEffect<'eff> list * triggerSpawns:TaggedEffect<'eff> list
+        | ValidStep of state:'state * events:'event list * modifierSpawns:TaggedEffect<'eff> list * triggerSpawns:TaggedEffect<'eff> list
 
     type EffectResult<'state, 'event> = 
         | InvalidChain
-        | ValidChain of state:'state * event:'event list
+        | ValidChain of state:'state * events:'event list
 
-    let private eval_one<'state, 'eff, 'event>
+    let private eval_one<'eff, 'event, 'state when 'state :> IGameState<'eff, 'event>>
         (validate_effect: 'eff -> 'state -> bool)
-        (apply_effect: 'eff -> 'state -> 'state * 'event)
-        (modifiers: IEffectModifier<'eff> list)
-        (triggers: IEventTrigger<'eff,'event> list)
+        (apply_effect: 'eff -> 'state -> 'state * 'event list)
         (state: 'state)
         (tagged: TaggedEffect<'eff>)
         : StepResult<'state, 'eff, 'event> = 
         // Step 1: Validate the effect
         if not (validate_effect tagged.Effect state) then InvalidStep
         else 
+            let modifiers = state.Modifiers
+            let triggers = state.Triggers
             // Step 2: Apply Modifiers to the effect
             let modifiedEffect, modifierSpawns = fold_modifiers modifiers tagged
             // Step 3: Actually apply the effect
-            let state', event = apply_effect modifiedEffect.Effect state
-            let triggerSpawns = trigger_spawns triggers tagged event
-            ValidStep(state', event, modifierSpawns, triggerSpawns)
+            let state', events = apply_effect modifiedEffect.Effect state
+            let triggerSpawns = trigger_spawns triggers tagged events
+            ValidStep(state', events, modifierSpawns, triggerSpawns)
 
-    let eval_all_bfs<'eff, 'state, 'event>
+    let eval_all_bfs<'eff, 'event, 'state when 'state :> IGameState<'eff, 'event>>
         (validate_effect: 'eff -> 'state -> bool)
-        (apply_effect: 'eff -> 'state -> 'state * 'event)
-        (modifiers: IEffectModifier<'eff> list)
-        (triggers: IEventTrigger<'eff,'event> list)
+        (apply_effect: 'eff -> 'state -> 'state * 'event list)
         (initialState : 'state)
         (initialEffect : 'eff)
         : EffectResult<'state, 'event> =
@@ -76,14 +80,14 @@ module Effects =
         let rec loop (state: 'state) (front:TaggedEffect<'eff> list) (back:TaggedEffect<'eff> list) (accEventRev: 'event list) =
             match front with
             | effect::front' ->
-                match eval_one validate_effect apply_effect modifiers triggers state effect with
+                match eval_one validate_effect apply_effect state effect with
                 | InvalidStep ->
                     loop state front' back accEventRev
-                | ValidStep (state', event, modifierSpawns, triggerSpawns) ->
+                | ValidStep (state', events, modifierSpawns, triggerSpawns) ->
                     // enqueue spawns at the end
                     let front'' = triggerSpawns @ front'
                     let back' = List.foldBack (fun x acc -> x::acc) modifierSpawns back
-                    loop state' front'' back' (event::accEventRev)
+                    loop state' front'' back' (events @ accEventRev)
             | [] ->
                 match back with
                 | [] -> ValidChain(state, List.rev accEventRev)
@@ -92,12 +96,10 @@ module Effects =
         let initial = [{ Effect = initialEffect; Provenance = Set.empty }]
         loop initialState initial [] []
 
-    let eval_effect<'eff, 'state, 'event>
+    let eval_effect<'eff, 'event, 'state when 'state :> IGameState<'eff, 'event>>
         (validate_effect: 'eff -> 'state -> bool)
-        (apply_effect: 'eff -> 'state -> 'state * 'event)
-        (modifiers: IEffectModifier<'eff> list)
-        (triggers: IEventTrigger<'eff,'event> list)
+        (apply_effect: 'eff -> 'state -> 'state * 'event list)
         (initialState : 'state)
         (effect : 'eff)
         : EffectResult<'state, 'event> =
-        eval_all_bfs validate_effect apply_effect modifiers triggers initialState effect
+        eval_all_bfs validate_effect apply_effect initialState effect
