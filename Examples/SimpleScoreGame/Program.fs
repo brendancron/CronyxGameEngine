@@ -1,4 +1,4 @@
-﻿open Pokemon.Effects
+﻿open Cronyx.Effects
 
 type PlayerId = string
 

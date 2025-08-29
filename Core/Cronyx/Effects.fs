@@ -1,4 +1,4 @@
-﻿namespace Pokemon
+﻿namespace Cronyx
 
 module Effects = 
     type State = int
@@ -15,11 +15,11 @@ module Effects =
         abstract member Modifiers: IEffectModifier<'eff> list
         abstract member Triggers: IEventTrigger<'eff, 'event> list
 
-    type TaggedEffect<'eff> = {
+    type private TaggedEffect<'eff> = {
         Effect : 'eff
         Provenance : Set<string> }
 
-    let fold_modifiers modifiers tagged = 
+    let private fold_modifiers modifiers tagged = 
         let finalEff, spawnedRev =
             modifiers
             |> List.fold (fun (eff, accRev) (m: IEffectModifier<'eff>) ->
@@ -33,7 +33,7 @@ module Effects =
             ) (tagged.Effect, [])
         { Effect = finalEff; Provenance = tagged.Provenance }, List.rev spawnedRev
 
-    let trigger_spawns (triggers: IEventTrigger<'eff,'event> list) (origin: TaggedEffect<'eff>) (events:'event list) =
+    let private trigger_spawns (triggers: IEventTrigger<'eff,'event> list) (origin: TaggedEffect<'eff>) (events:'event list) =
         events
         |> List.collect (fun event ->
             triggers
@@ -44,7 +44,7 @@ module Effects =
                     |> List.map (fun e ->
                         { Effect = e; Provenance = origin.Provenance.Add t.Id })))
 
-    type StepResult<'state, 'eff, 'event> = 
+    type private StepResult<'state, 'eff, 'event> = 
         | InvalidStep
         | ValidStep of state:'state * events:'event list * modifierSpawns:TaggedEffect<'eff> list * triggerSpawns:TaggedEffect<'eff> list
 
@@ -70,7 +70,7 @@ module Effects =
             let triggerSpawns = trigger_spawns triggers tagged events
             ValidStep(state', events, modifierSpawns, triggerSpawns)
 
-    let eval_all_bfs<'eff, 'event, 'state when 'state :> IGameState<'eff, 'event>>
+    let private eval_all_bfs<'eff, 'event, 'state when 'state :> IGameState<'eff, 'event>>
         (validate_effect: 'eff -> 'state -> bool)
         (apply_effect: 'eff -> 'state -> 'state * 'event list)
         (initialState : 'state)
