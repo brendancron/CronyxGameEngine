@@ -6,7 +6,9 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<Compile Include="Grammar.fs" />
+		<Compile Include="DSL\Environment.fs" />
+		<Compile Include="DSL\Expressions.fs" />
+		<Compile Include="DSL\Statements.fs" />
 		<Compile Include="Effects.fs" />
 	</ItemGroup>
 
