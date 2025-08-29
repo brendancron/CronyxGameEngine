@@ -1,15 +1,15 @@
 ﻿namespace Cronyx
 
-module Grammar = 
+module Expressions = 
     type IExpr<'a> =
-        abstract member Eval : unit -> 'a
+        abstract member Eval : Env -> 'a
 
     (*
         Utility eval expression to allow for simpler calling of expression evaluations
     *)
 
-    let eval (expr: 'a IExpr) : 'a =
-        expr.Eval ()
+    let eval (expr: 'a IExpr) (env: Env) : 'a =
+        expr.Eval (env)
 
     (*
         Primary Type definitions go here
@@ -17,19 +17,19 @@ module Grammar =
 
     type BoolExpr (b: bool) = 
         interface IExpr<bool> with
-            member _.Eval () = b
+            member _.Eval env = b
 
     type IntExpr (i: int) = 
         interface IExpr<int> with
-            member _.Eval () = i
+            member _.Eval env = i
 
     type StringExpr (str: string) = 
         interface IExpr<string> with
-            member _.Eval () = str
+            member _.Eval env = str
 
     type FloatExpr (f: float) = 
         interface IExpr<float> with
-            member _.Eval () = f
+            member _.Eval env = f
 
     (*
         Logic Operators
@@ -37,19 +37,19 @@ module Grammar =
 
     type AndExpr (l: IExpr<bool>, r: IExpr<bool>) = 
         interface IExpr<bool> with
-            member _.Eval () = if l.Eval () then r.Eval () else false
+            member _.Eval env = if l.Eval env then r.Eval env else false
     
     type OrExpr (l: IExpr<bool>, r: IExpr<bool>) = 
         interface IExpr<bool> with
-            member _.Eval () = if l.Eval () then false else r.Eval ()
+            member _.Eval env = if l.Eval env then false else r.Eval env
 
     type XorExpr (l: IExpr<bool>, r: IExpr<bool>) = 
         interface IExpr<bool> with
-            member _.Eval () = l.Eval () <> r.Eval ()
+            member _.Eval env = l.Eval env <> r.Eval env
 
     type NotExpr (e: IExpr<bool>) = 
         interface IExpr<bool> with
-            member _.Eval () = not (e.Eval ())
+            member _.Eval env = not (e.Eval env)
 
     (*
         Arithmetic Operators
@@ -67,31 +67,31 @@ module Grammar =
 
     type AddExpr<'l,'r,'res>(l: IExpr<'l>, r: IExpr<'r>, add: 'l -> 'r -> 'res) =
         interface IExpr<'res> with
-            member _.Eval() = add (l.Eval()) (r.Eval())
+            member _.Eval env = add (l.Eval env) (r.Eval env)
 
     type SubExpr<'l,'r,'res>(l: IExpr<'l>, r: IExpr<'r>, sub: 'l -> 'r -> 'res) =
         interface IExpr<'res> with
-            member _.Eval() = sub (l.Eval()) (r.Eval())
+            member _.Eval env = sub (l.Eval env) (r.Eval env)
 
     type MulExpr<'l,'r,'res>(l: IExpr<'l>, r: IExpr<'r>, mul: 'l -> 'r -> 'res) =
         interface IExpr<'res> with
-            member _.Eval() = mul (l.Eval()) (r.Eval())
+            member _.Eval env = mul (l.Eval env) (r.Eval env)
 
     type DivExpr<'l,'r,'res>(l: IExpr<'l>, r: IExpr<'r>, div: 'l -> 'r -> 'res) =
         interface IExpr<'res> with
-            member _.Eval() = div (l.Eval()) (r.Eval())
+            member _.Eval env = div (l.Eval env) (r.Eval env)
 
     type ModExpr(l: IExpr<int>, r: IExpr<int>) =
         interface IExpr<int> with
-            member _.Eval() = l.Eval() % r.Eval()
+            member _.Eval env = l.Eval env % r.Eval env
 
     type AbsExpr<'a>(e: IExpr<'a>, abs: 'a -> 'a) =
         interface IExpr<'a> with
-            member _.Eval() = abs (e.Eval())
+            member _.Eval env = abs (e.Eval env)
 
     type NegExpr<'a>(e: IExpr<'a>, neg: 'a -> 'a) =
         interface IExpr<'a> with
-            member _.Eval() = neg (e.Eval())
+            member _.Eval env = neg (e.Eval env)
 
     (*
         Comparison Expressions
@@ -99,27 +99,27 @@ module Grammar =
 
     type EqualExpr<'a when 'a : equality>(l: IExpr<'a>, r: IExpr<'a>) =
         interface IExpr<bool> with
-            member _.Eval() = (l.Eval() = r.Eval())
+            member _.Eval env = (l.Eval env = r.Eval env)
 
     type NotEqualExpr<'a when 'a : equality>(l: IExpr<'a>, r: IExpr<'a>) =
         interface IExpr<bool> with
-            member _.Eval() = not (l.Eval() = r.Eval())
+            member _.Eval env = not (l.Eval env = r.Eval env)
 
     type GreaterThanExpr<'a when 'a : comparison>(l: IExpr<'a>, r: IExpr<'a>) =
         interface IExpr<bool> with
-            member _.Eval() = (l.Eval() > r.Eval())
+            member _.Eval env = (l.Eval env > r.Eval env)
 
     type LessThanExpr<'a when 'a : comparison>(l: IExpr<'a>, r: IExpr<'a>) =
         interface IExpr<bool> with
-            member _.Eval() = (l.Eval() < r.Eval())
+            member _.Eval env = (l.Eval env < r.Eval env)
 
     type GreaterOrEqualExpr<'a when 'a : comparison>(l: IExpr<'a>, r: IExpr<'a>) =
         interface IExpr<bool> with
-            member _.Eval() = (l.Eval() >= r.Eval())
+            member _.Eval env = (l.Eval env >= r.Eval env)
 
     type LessOrEqualExpr<'a when 'a : comparison>(l: IExpr<'a>, r: IExpr<'a>) =
         interface IExpr<bool> with
-            member _.Eval() = (l.Eval() <= r.Eval())
+            member _.Eval env = (l.Eval env <= r.Eval env)
 
     (*
         Conditional Expressions
@@ -127,7 +127,7 @@ module Grammar =
 
     type TernaryExpr<'r>(c: IExpr<bool>, t: IExpr<'r>, e: IExpr<'r>) =
         interface IExpr<'r> with
-            member _.Eval () = if c.Eval() then t.Eval() else e.Eval()
+            member _.Eval env = if c.Eval env then t.Eval env else e.Eval env
 
     (*
         Lambda
@@ -135,8 +135,16 @@ module Grammar =
 
     type LambdaExpr<'a,'b>(f: 'a -> 'b) =
         interface IExpr<'a -> 'b> with
-            member _.Eval() = f
+            member _.Eval env = f
 
     type ApplyExpr<'a,'b>(f: IExpr<'a -> 'b>, arg: IExpr<'a>) =
         interface IExpr<'b> with
-            member _.Eval() = (f.Eval()) (arg.Eval())
+            member _.Eval env = (f.Eval env) (arg.Eval env)
+
+    (*
+        Variables
+    *)
+
+    type VarExpr<'a>(name: string) =
+        interface IExpr<'a> with
+            member _.Eval env = Env.get name env |> unbox<'a>

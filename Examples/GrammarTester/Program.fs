@@ -1,25 +1,27 @@
-﻿open Cronyx.Grammar
+﻿open Cronyx.Expressions
+open Cronyx.Statements
+open Cronyx
 
-let myexpr = (TernaryExpr((BoolExpr true), (IntExpr 7), (IntExpr 6)))
+let block =
+    BlockStmt([
+        VarDeclStmt("x", IntExpr 10) :> IStmt
+        PrintStmt(VarExpr<int>("x")) :> IStmt
+        BlockStmt([
+            VarDeclStmt("x", IntExpr 20) :> IStmt
+            PrintStmt(VarExpr<int>("x")) :> IStmt
+        ]) :> IStmt
+        PrintStmt(VarExpr<int>("x")) :> IStmt
+        VarDeclStmt("y", IntExpr 0) :> IStmt
+        WhileStmt(
+            LessThanExpr(VarExpr<int>("y"), IntExpr 3),
+            BlockStmt([
+                PrintStmt(VarExpr<int>("y")) :> IStmt
+                AssignStmt("y",
+                    AddExpr(VarExpr<int>("y"), IntExpr 1, (+))
+                ) :> IStmt
+            ])
+        ) :> IStmt
+    ]) :> IStmt
 
-let inline addIntFloat i f = float(i) + f
-
-let divExpr = DivExpr (FloatExpr(2.0), FloatExpr(0.0), (/))
-
-// For more information see https://aka.ms/fsharp-console-apps
-printfn "%A" (eval divExpr)
-
-// Lambda expression: x ↦ x + 1
-let incrExpr =
-    LambdaExpr<int,int>(fun x -> x + 1) :> IExpr<int -> int>
-
-// Argument expression: literal 5
-let argExpr =
-    IntExpr 5 :> IExpr<int>
-
-// Apply the lambda to the argument: (x+1)(5)
-let applied =
-    ApplyExpr(incrExpr, argExpr) :> IExpr<int>
-
-// Evaluate
-printfn "%d" (applied.Eval())   // prints 6
+let env0 = Env.empty
+let env1 = block.Exec env0
