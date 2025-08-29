@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Core\Cronyx\Cronyx.fsproj" />
+    <ProjectReference Include="..\..\Core\Cronyx\Cronyx.fsproj" />
   </ItemGroup>
 
 </Project>
