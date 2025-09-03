@@ -1,39 +1,48 @@
 ﻿namespace Cronyx
 
-type Env =
-    { Scopes : Map<string,obj> list }
+open Cronyx.Effects
 
-module Env = 
+type Env<'eff,'event,'state when 'state :> IGameState<'eff,'event>> = {
+    Scopes    : Map<string,obj> list
+    GameState : 'state
+    Trace     : 'event list
+}
 
-    let empty = { Scopes = [ Map.empty ] }
+module Env =
 
-    let push env =
-        { Scopes = Map.empty :: env.Scopes }
+    /// Create an empty lexical environment with an initial game state
+    let empty (gameState : 'state) : Env<'eff,'event,'state> =
+        { Scopes = [ Map.empty ]
+          GameState = gameState
+          Trace = [] }
 
-    let pop env =
+    let push (env: Env<'eff,'event,'state>) =
+        { env with Scopes = Map.empty :: env.Scopes }
+
+    let pop (env: Env<'eff,'event,'state>) =
         match env.Scopes with
-        | [] -> failwith "No scope to pop"
-        | _::rest -> { Scopes = rest }
+        | []        -> failwith "No scope to pop"
+        | _ :: rest -> { env with Scopes = rest }
 
-    let define name value env =
+    let define name value (env: Env<'eff,'event,'state>) =
         match env.Scopes with
         | [] -> failwith "No scope to define in"
-        | scope::rest ->
-            { Scopes = (scope.Add(name, value)) :: rest }
+        | scope :: rest ->
+            { env with Scopes = (scope.Add(name, value)) :: rest }
 
-    let rec assign name value env =
+    let rec assign name value (env: Env<'eff,'event,'state>) =
         match env.Scopes with
         | [] -> failwithf "Undefined variable '%s'" name
-        | scope::rest when scope.ContainsKey name ->
-            { Scopes = (scope.Add(name, value)) :: rest }
-        | scope::rest ->
-            let updated = assign name value { Scopes = rest }
-            { Scopes = scope :: updated.Scopes }
+        | scope :: rest when scope.ContainsKey name ->
+            { env with Scopes = (scope.Add(name, value)) :: rest }
+        | scope :: rest ->
+            let updated = assign name value { env with Scopes = rest }
+            { env with Scopes = scope :: updated.Scopes }
 
-    let rec get name env =
+    let rec get name (env: Env<'eff,'event,'state>) =
         match env.Scopes with
         | [] -> failwithf "Undefined variable '%s'" name
-        | scope::rest ->
+        | scope :: rest ->
             match scope.TryFind name with
             | Some v -> v
-            | None -> get name { Scopes = rest }
+            | None   -> get name { env with Scopes = rest }

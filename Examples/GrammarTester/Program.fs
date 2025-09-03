@@ -1,27 +1,41 @@
 ﻿open Cronyx.Expressions
 open Cronyx.Statements
 open Cronyx
+open Cronyx.Effects
 
+// --- Minimal dummy state so Env<'eff,'event,'state> can compile ---
+type DummyEffect = unit
+type DummyEvent  = string
+
+type DummyState() =
+    interface IGameState<DummyEffect,DummyEvent> with
+        member _.Modifiers = []
+        member _.Triggers  = []
+
+let initialState = DummyState()
+
+// --- Build a program block using the generic forms ---
 let block =
-    BlockStmt([
-        VarDeclStmt("x", IntExpr 10) :> IStmt
-        PrintStmt(VarExpr<int>("x")) :> IStmt
-        BlockStmt([
-            VarDeclStmt("x", IntExpr 20) :> IStmt
-            PrintStmt(VarExpr<int>("x")) :> IStmt
-        ]) :> IStmt
-        PrintStmt(VarExpr<int>("x")) :> IStmt
-        VarDeclStmt("y", IntExpr 0) :> IStmt
-        WhileStmt(
-            LessThanExpr(VarExpr<int>("y"), IntExpr 3),
-            BlockStmt([
-                PrintStmt(VarExpr<int>("y")) :> IStmt
-                AssignStmt("y",
-                    AddExpr(VarExpr<int>("y"), IntExpr 1, (+))
-                ) :> IStmt
+    BlockStmt<DummyEffect,DummyEvent,DummyState>([
+        VarDeclStmt<int,DummyEffect,DummyEvent,DummyState>("x", IntExpr<DummyEffect,DummyEvent,DummyState>(10)) :> IStmt<_,_,_>
+        PrintStmt<int,DummyEffect,DummyEvent,DummyState>(VarExpr<int,DummyEffect,DummyEvent,DummyState>("x")) :> IStmt<_,_,_>
+        BlockStmt<DummyEffect,DummyEvent,DummyState>([
+            VarDeclStmt<int,_,_,_>("x", IntExpr<_,_,_>(20)) :> IStmt<_,_,_>
+            PrintStmt<int,_,_,_>(VarExpr<int,_,_,_>("x")) :> IStmt<_,_,_>
+        ]) :> IStmt<_,_,_>
+        PrintStmt<int,_,_,_>(VarExpr<int,_,_,_>("x")) :> IStmt<_,_,_>
+        VarDeclStmt<int,_,_,_>("y", IntExpr<_,_,_>(0)) :> IStmt<_,_,_>
+        WhileStmt<DummyEffect,DummyEvent,DummyState>(
+            LessThanExpr<int,_,_,_>(VarExpr<int,_,_,_>("y"), IntExpr<_,_,_>(3)),
+            BlockStmt<DummyEffect,DummyEvent,DummyState>([
+                PrintStmt<int,_,_,_>(VarExpr<int,_,_,_>("y")) :> IStmt<_,_,_>
+                AssignStmt<int,_,_,_>("y",
+                    AddExpr<int,int,int,_,_,_>(VarExpr<int,_,_,_>("y"), IntExpr<_,_,_>(1), (+))
+                ) :> IStmt<_,_,_>
             ])
-        ) :> IStmt
-    ]) :> IStmt
+        ) :> IStmt<_,_,_>
+    ]) :> IStmt<_,_,_>
 
-let env0 = Env.empty
+// --- Run it ---
+let env0 = Env.empty initialState
 let env1 = block.Exec env0
