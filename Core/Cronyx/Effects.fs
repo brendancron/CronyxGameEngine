@@ -1,23 +1,38 @@
 ﻿namespace Cronyx
 
+open Cronyx.Core
+
 module Effects = 
-    type State = int
 
-    type IEffectModifier<'eff> =
-        abstract member Id : string
-        abstract member Modify: 'eff -> 'eff * 'eff list
+    let applyModifiers
+        (modifiers : IEffectModifier<'eff> list)
+        (effect : 'eff)
+        (provenance : Set<string> list)
+        : 'eff * Set<string> list =
+        modifiers
+        |> List.fold (fun (eff, prov) (m: IEffectModifier<'eff>) ->
+            if Env.containsProvenance m.Id prov then
+                eff, prov
+            else
+                let eff' = m.Modify eff
+                eff', Env.addProvenanceHelper m.Id prov
+        ) (effect, provenance)
 
-    type IEventTrigger<'eff,'event> =
-        abstract member Id : string
-        abstract member OnEvent : 'event -> 'eff list
 
-    type IGameState<'eff, 'event> = 
-        abstract member Modifiers: IEffectModifier<'eff> list
-        abstract member Triggers: IEventTrigger<'eff, 'event> list
+    let applyTriggers
+        (triggers: IEventTrigger<'eff,'event> list)
+        (events: 'event list)
+        : (IStmt<'eff,'event,'state> * string) list =
 
-    type private TaggedEffect<'eff> = {
-        Effect : 'eff
-        Provenance : Set<string> }
+        events
+        |> List.collect (fun ev ->
+            triggers
+            |> List.choose (fun (t: IEventTrigger<'eff,'event>) ->
+                match t.OnEvent ev with
+                | Some stmt -> Some (stmt, t.Id)
+                | None      -> None))
+
+(*
 
     let private fold_modifiers modifiers tagged = 
         let finalEff, spawnedRev =
@@ -70,6 +85,46 @@ module Effects =
             let triggerSpawns = trigger_spawns triggers tagged events
             ValidStep(state', events, modifierSpawns, triggerSpawns)
 
+    type private ExecutionItem<'eff,'event,'state when 'state :> IGameState<'eff,'event>> =
+        | EffectItem of TaggedEffect<'eff>
+        | StatementItem of IStmt<'eff,'event,'state>
+
+    let eval_hybrid_execution<'eff, 'event, 'state when 'state :> IGameState<'eff, 'event>>
+        (validate_effect: 'eff -> 'state -> bool)
+        (apply_effect: 'eff -> 'state -> 'state * 'event list)
+        (initialState : 'state)
+        (initialEffect : 'eff)
+        : EffectResult<'state, 'event> =
+    
+        let rec loop (env: Env<'eff,'event,'state>) (queue: ExecutionItem<'eff,'event,'state> list) =
+            match queue with
+            | [] -> ValidChain(env.GameState, env.Trace)
+    
+            | EffectItem(taggedEffect) :: rest ->
+                match eval_one validate_effect apply_effect env.GameState taggedEffect with
+                | InvalidStep -> loop env rest
+                | ValidStep (state', events, modifierSpawns, triggerSpawns) ->
+                    // Collect triggered statements (filter out None values)
+                    let triggeredStatements = 
+                        events
+                        |> List.collect (fun event ->
+                            state'.Triggers
+                            |> List.choose (fun trigger -> trigger.OnEvent event))
+                        |> List.map StatementItem
+            
+                    let effectItems = (triggerSpawns @ modifierSpawns) |> List.map EffectItem
+                    let newQueue = triggeredStatements @ effectItems @ rest
+                    let newEnv = { env with GameState = state'; Trace = env.Trace @ events }
+                    loop newEnv newQueue
+            
+            | StatementItem(stmt) :: rest ->
+                let newEnv = stmt.Exec env
+                loop newEnv rest
+    
+        let initialQueue = [EffectItem({ Effect = initialEffect; Provenance = Set.empty })]
+        let initialEnv = { Scopes = [Map.empty]; GameState = initialState; Trace = [] }
+        loop initialEnv initialQueue
+
     let private eval_all_bfs<'eff, 'event, 'state when 'state :> IGameState<'eff, 'event>>
         (validate_effect: 'eff -> 'state -> bool)
         (apply_effect: 'eff -> 'state -> 'state * 'event list)
@@ -103,3 +158,4 @@ module Effects =
         (effect : 'eff)
         : EffectResult<'state, 'event> =
         eval_all_bfs validate_effect apply_effect initialState effect
+*)

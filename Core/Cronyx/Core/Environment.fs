@@ -1,12 +1,4 @@
-﻿namespace Cronyx
-
-open Cronyx.Effects
-
-type Env<'eff,'event,'state when 'state :> IGameState<'eff,'event>> = {
-    Scopes    : Map<string,obj> list
-    GameState : 'state
-    Trace     : 'event list
-}
+﻿namespace Cronyx.Core
 
 module Env =
 
@@ -14,7 +6,8 @@ module Env =
     let empty (gameState : 'state) : Env<'eff,'event,'state> =
         { Scopes = [ Map.empty ]
           GameState = gameState
-          Trace = [] }
+          Trace = []
+          Provenance = [ Set.empty ] }
 
     let push (env: Env<'eff,'event,'state>) =
         { env with Scopes = Map.empty :: env.Scopes }
@@ -46,3 +39,23 @@ module Env =
             match scope.TryFind name with
             | Some v -> v
             | None   -> get name { env with Scopes = rest }
+
+    let pushProvenance (env: Env<'eff,'event,'state>) =
+        { env with Provenance = Set.empty :: env.Provenance }
+
+    let popProvenance (env: Env<'eff,'event,'state>) =
+        match env.Provenance with
+        | [] -> failwith "No provenance to pop"
+        | _ :: rest -> { env with Provenance = rest }
+
+    let addProvenanceHelper id (provenance: Set<string> list) =
+        match provenance with
+        | [] -> failwith "No provenance scope"
+        | prov :: rest ->
+            (prov.Add id) :: rest
+
+    let addProvenance id (env: Env<'eff,'event,'state>) =
+        { env with Provenance = (addProvenanceHelper id env.Provenance) }
+
+    let containsProvenance id (provenance: Set<string> list) =
+        provenance |> List.exists (fun scope -> scope.Contains id)

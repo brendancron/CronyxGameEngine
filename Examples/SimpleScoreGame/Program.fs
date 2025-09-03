@@ -1,7 +1,7 @@
 ﻿open Cronyx.Effects
 open Cronyx.Expressions
 open Cronyx.Statements
-open Cronyx
+open Cronyx.Core
 
 type PlayerId = string
 
@@ -41,26 +41,6 @@ let apply_effect (effect: Effect) (state: State) : State * Event list =
       let pmap = state.PlayerMap |> Map.add pid (cur + amt)
       { state with PlayerMap = pmap }, [HealResolved(pid, amt)]
 
-// Provide a utility method to reduce verbosity
-let curry_eval = eval_effect validate_effect apply_effect
-
-// MONAD
-let bind (res: EffectResult<'state,'event>)
-         (next: 'state -> EffectResult<'state,'event>)
-         : EffectResult<'state,'event> =
-    match res with
-    | InvalidChain -> InvalidChain
-    | ValidChain (s, evs) ->
-        match next s with
-        | InvalidChain -> InvalidChain
-        | ValidChain (s2, evs2) -> ValidChain (s2, evs @ evs2)
-
-let runChain state effects =
-    effects
-    |> List.fold (fun acc eff ->
-        bind acc (fun s -> curry_eval s eff)
-    ) (ValidChain (state, []))
-
 // Modifier Definitions
 
 type HealingScale(id: string, target: string, percent: float) =
@@ -68,25 +48,18 @@ type HealingScale(id: string, target: string, percent: float) =
         member _.Id = id
         member _.Modify(effect: Effect) =
             match effect with
-            | Heal (player, amt) when player = target -> Heal (player, int(float(amt) * percent)), []
-            | other    -> other, []
+            | Heal (player, amt) when player = target -> Heal (player, int(float(amt) * percent))
+            | other    -> other
 
 type GlobalHealingScale(id: string, percent: float) =
     interface IEffectModifier<Effect> with
         member _.Id = id
         member _.Modify(effect: Effect) =
             match effect with
-            | Heal (player, amt) -> Heal (player, int(float(amt) * percent)), []
-            | other    -> other, []
+            | Heal (player, amt) -> Heal (player, int(float(amt) * percent))
+            | other    -> other
 
-type SiphonHeal(id: string, target: string, source: string, percent: float) =
-    interface IEffectModifier<Effect> with
-        member _.Id = id
-        member _.Modify(effect: Effect) =
-            match effect with
-            | Heal (player, amt) when player = target -> Heal (target, int(float(amt) * (1.0 - percent))), [Heal (source, int(float(amt) * percent))]
-            | other    -> other, []
-
+(*
 type ReflectDamage(id: string, target: string, source: string, percent: float) =
     interface IEventTrigger<Effect, Event> with
         member _.Id = id
@@ -94,12 +67,13 @@ type ReflectDamage(id: string, target: string, source: string, percent: float) =
             match event with
             | DamageResolved (pid, amt) when pid = source -> [Damage(target, int(float(amt) * percent))]
             | _ -> []
+*)
 
 // Modifier Construction
 
-let siphonHeal = SiphonHeal("siphon", "Alice", "Bob", 0.25)
-let reflectDamage = ReflectDamage("reflect", "Alice", "Bob", 0.5)
-let reflectDamage2 = ReflectDamage("reflect2", "Bob", "Alice", 0.5)
+//let siphonHeal = SiphonHeal("siphon", "Alice", "Bob", 0.25)
+//let reflectDamage = ReflectDamage("reflect", "Alice", "Bob", 0.5)
+//let reflectDamage2 = ReflectDamage("reflect2", "Bob", "Alice", 0.5)
 let doubleHeal = GlobalHealingScale("Global Heal", 2.0)
 
 // State Construction
@@ -114,6 +88,9 @@ let initialState = {
 }
 
 // Expr Construction
+
+let healExpr target amt = EffectExpr(Heal(target, amt), Set.empty)
+let damageExpr target amt = EffectExpr(Damage(target, amt), Set.empty)
 
 type HealExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
     (player: PlayerId, amount: IExpr<int,'eff,'event,'state>) =

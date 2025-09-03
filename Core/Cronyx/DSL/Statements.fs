@@ -1,12 +1,9 @@
 ﻿namespace Cronyx
 
+open Cronyx.Core
 open Cronyx.Effects
-open Cronyx.Expressions
 
 module Statements = 
-    type IStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>> =
-        abstract member Exec : Env<'eff,'event,'state> -> Env<'eff,'event,'state>
-
     (*
         Expression statement: evaluate, discard result
     *)
@@ -28,7 +25,6 @@ module Statements =
                 let env1 = Env.push env0
                 let env2 = (env1, stmts) ||> List.fold (fun e s -> s.Exec e)
                 Env.pop env2
-
 
     (*
         Debug printing
@@ -121,12 +117,36 @@ module Statements =
          ?onInvalid: string -> unit) =
         interface IStmt<'eff,'event,'state> with
             member _.Exec env =
+                // Step 1: Resolve the effect
                 let effect = effectExpr.Eval env
-                match eval_effect validate apply env.GameState effect with
-                | InvalidChain -> 
-                    let errorMsg = sprintf "Effect chain invalid for effect: %A" effect
-                    match onInvalid with
-                    | Some handler -> handler errorMsg; env
-                    | None -> failwith errorMsg
-                | ValidChain(newState, events) ->
-                    { env with GameState = newState; Trace = env.Trace @ events }
+                // we want to use the original triggers to spawn new events
+                let originalTriggers = env.GameState.Triggers
+                // Step 2: Resolve all modifiers
+                let modified_effect, provenance =
+                    applyModifiers env.GameState.Modifiers effect env.Provenance
+                // Step 3: Determine validity
+                if (validate modified_effect env.GameState) then
+                    // Step 4: Apply effect
+                    let state', events = apply modified_effect env.GameState
+
+                    // Step 5: Collect trigger-spawned statements
+                    let triggeredStmts = applyTriggers originalTriggers events
+
+                    // Step 6: Update environment with new state + events
+                    let env' = 
+                        { env with
+                            GameState = state'
+                            Trace = env.Trace @ events
+                            Provenance = provenance }
+
+                    // Step 7: Execute each triggered statement,
+                    // pushing trigger ID into provenance
+                    triggeredStmts
+                    |> List.fold (fun acc (stmt, triggerId) ->
+                        let acc1 = Env.pushProvenance acc
+                        let acc2 = Env.addProvenance triggerId acc1
+                        let acc3 = stmt.Exec acc2
+                        Env.popProvenance acc3
+                    ) env'
+                else
+                    env

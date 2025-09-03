@@ -1,10 +1,8 @@
 ﻿namespace Cronyx
 
-open Cronyx.Effects
+open Cronyx.Core
 
-module Expressions = 
-    type IExpr<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>> =
-        abstract member Eval : Env<'eff,'event,'state> -> 'a
+module Expressions =
 
     (*
         Utility eval expression to allow for simpler calling of expression evaluations
@@ -173,6 +171,17 @@ module Expressions =
         (name: string) =
         interface IExpr<'a,'eff,'event,'state> with
             member _.Eval env = Env.get name env |> unbox<'a>
+
+    (*
+        Effects
+    *)
+
+    type EffectExpr<'event,'eff,'state when 'state :> IGameState<'eff,'event>>
+        (effect: 'eff,
+         provenance: Set<string>) =
+        interface IExpr<TaggedEffect<'eff>,'eff,'event,'state> with
+            member _.Eval env =
+                { Effect = effect; Provenance = provenance }
 
     (*
         Queries
