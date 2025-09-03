@@ -6,10 +6,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<Compile Include="Effects.fs" />
 		<Compile Include="DSL\Environment.fs" />
 		<Compile Include="DSL\Expressions.fs" />
 		<Compile Include="DSL\Statements.fs" />
-		<Compile Include="Effects.fs" />
 	</ItemGroup>
 
 </Project>

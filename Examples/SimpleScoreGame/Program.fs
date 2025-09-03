@@ -1,4 +1,7 @@
 ﻿open Cronyx.Effects
+open Cronyx.Expressions
+open Cronyx.Statements
+open Cronyx
 
 type PlayerId = string
 
@@ -97,6 +100,7 @@ type ReflectDamage(id: string, target: string, source: string, percent: float) =
 let siphonHeal = SiphonHeal("siphon", "Alice", "Bob", 0.25)
 let reflectDamage = ReflectDamage("reflect", "Alice", "Bob", 0.5)
 let reflectDamage2 = ReflectDamage("reflect2", "Bob", "Alice", 0.5)
+let doubleHeal = GlobalHealingScale("Global Heal", 2.0)
 
 // State Construction
 
@@ -105,19 +109,50 @@ let initialState = {
         "Alice", 100
         "Bob", 100 ]
         |> Map.ofList
-    Modifiers = [siphonHeal]
-    Triggers = [reflectDamage; reflectDamage2]
+    Modifiers = [doubleHeal]
+    Triggers = []
 }
 
-// Effect Construction
+// Expr Construction
 
-let effect1 = Heal("Alice", 30)
-let effect2 = Damage("Bob", 50)
+type HealExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    (player: PlayerId, amount: IExpr<int,'eff,'event,'state>) =
+    interface IExpr<Effect,'eff,'event,'state> with
+        member _.Eval env =
+            let amt = amount.Eval env
+            Heal(player, amt)
 
-// State Execution
+type DamageExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    (player: PlayerId, amount: IExpr<int,'eff,'event,'state>) =
+    interface IExpr<Effect,'eff,'event,'state> with
+        member _.Eval env =
+            let amt = amount.Eval env
+            Damage(player, amt)
 
-match runChain initialState [effect1; effect2] with
-| InvalidChain -> printfn "INVALID"
-| ValidChain (s, evs) ->
-    printfn "Final: %A" s
-    printfn "Events: %A" evs
+// Giga drain example
+
+let gigaDrain self target healRatio =
+    BlockStmt<Effect,Event,State>([
+        EffectStmt(DamageExpr(target, IntExpr<_,_,_>(50)), validate_effect, apply_effect) :> IStmt<_,_,_>
+        EffectStmt(HealExpr(self, 
+            MulExpr<int,float,int,Effect,Event,State>(
+                FoldEventsExpr<Event,int,Effect,State>(
+                    (fun acc ev ->
+                        match ev with
+                        | DamageResolved(pid, amt) when pid = target -> acc + amt
+                        | _ -> acc),
+                    0),
+                FloatExpr<_,_,_>(healRatio),
+                (fun damage ratio -> int(float(damage) * ratio))
+            )), validate_effect, apply_effect) :> IStmt<_,_,_>
+    ]) :> IStmt<_,_,_>
+
+// Usage
+
+let env = Env.empty initialState
+let gigaDrainStmt = gigaDrain "Alice" "Bob" 0.5
+let finalEnv = gigaDrainStmt.Exec env
+
+printfn "Initial state: %A" initialState.PlayerMap
+printfn "Final state: %A" finalEnv.GameState.PlayerMap
+printfn "Events: %A" finalEnv.Trace

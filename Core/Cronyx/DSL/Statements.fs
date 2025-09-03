@@ -1,50 +1,54 @@
 ﻿namespace Cronyx
 
+open Cronyx.Effects
 open Cronyx.Expressions
 
 module Statements = 
-    type IStmt =
-        abstract member Exec : Env -> Env
-
-    let exec (stmt : IStmt) (env: Env) = stmt.Exec env
+    type IStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>> =
+        abstract member Exec : Env<'eff,'event,'state> -> Env<'eff,'event,'state>
 
     (*
-        Adding the ability for expression statements
+        Expression statement: evaluate, discard result
     *)
-
-    type ExprStmt<'a> (expr: IExpr<'a>) = 
-        interface IStmt with
+    type ExprStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (expr: IExpr<'a,'eff,'event,'state>) =
+        interface IStmt<'eff,'event,'state> with
             member _.Exec env =
                 expr.Eval env |> ignore
                 env
 
-    (*
-        allows for a list of statements to be run sequentially
-    *)
 
-    type BlockStmt(stmts: IStmt list) =
-        interface IStmt with
+    (*
+        Sequential block of statements with its own lexical scope
+    *)
+    type BlockStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (stmts: IStmt<'eff,'event,'state> list) =
+        interface IStmt<'eff,'event,'state> with
             member _.Exec env0 =
                 let env1 = Env.push env0
                 let env2 = (env1, stmts) ||> List.fold (fun e s -> s.Exec e)
                 Env.pop env2
 
-    (*
-        Added debugging logic
-    *)
 
-    type PrintStmt<'a>(expr: IExpr<'a>) =
-        interface IStmt with
+    (*
+        Debug printing
+    *)
+    type PrintStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (expr: IExpr<'a,'eff,'event,'state>) =
+        interface IStmt<'eff,'event,'state> with
             member _.Exec env =
                 printfn "%A" (expr.Eval env)
                 env
 
-    (*
-        Control Flow
-    *)
 
-    type IfStmt(cond: IExpr<bool>, thenBranch: IStmt, elseBranch: IStmt option) =
-        interface IStmt with
+    (*
+        Control flow
+    *)
+    type IfStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (cond: IExpr<bool,'eff,'event,'state>,
+         thenBranch: IStmt<'eff,'event,'state>,
+         elseBranch: IStmt<'eff,'event,'state> option) =
+        interface IStmt<'eff,'event,'state> with
             member _.Exec env =
                 if cond.Eval env then
                     thenBranch.Exec env
@@ -54,15 +58,22 @@ module Statements =
                     | None -> env
 
 
-    type WhileStmt(cond: IExpr<bool>, body: IStmt) =
-        interface IStmt with
+    type WhileStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (cond: IExpr<bool,'eff,'event,'state>,
+         body: IStmt<'eff,'event,'state>) =
+        interface IStmt<'eff,'event,'state> with
             member _.Exec env0 =
                 let rec loop env =
                     if cond.Eval env then loop (body.Exec env) else env
                 loop env0
 
-    type ForStmt(init: IStmt option, cond: IExpr<bool>, increment: IStmt option, body: IStmt) =
-        interface IStmt with
+
+    type ForStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (init: IStmt<'eff,'event,'state> option,
+         cond: IExpr<bool,'eff,'event,'state>,
+         increment: IStmt<'eff,'event,'state> option,
+         body: IStmt<'eff,'event,'state>) =
+        interface IStmt<'eff,'event,'state> with
             member _.Exec env0 =
                 let env1 =
                     match init with
@@ -79,20 +90,43 @@ module Statements =
                     else env
                 loop env1
 
+
     (*
         Variables
     *)
-
-    type VarDeclStmt<'a>(name: string, init: IExpr<'a>) =
-        // Defines (or shadows) in the *current* scope
-        interface IStmt with
+    type VarDeclStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (name: string, init: IExpr<'a,'eff,'event,'state>) =
+        interface IStmt<'eff,'event,'state> with
             member _.Exec env =
                 let value = init.Eval env |> box
                 Env.define name value env
 
-    type AssignStmt<'a>(name: string, expr: IExpr<'a>) =
-        // Reassigns in the nearest scope where 'name' exists
-        interface IStmt with
+
+    type AssignStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (name: string, expr: IExpr<'a,'eff,'event,'state>) =
+        interface IStmt<'eff,'event,'state> with
             member _.Exec env =
                 let value = expr.Eval env |> box
                 Env.assign name value env
+
+
+    (*
+        Game Effects
+    *)
+
+    type EffectStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+        (effectExpr: IExpr<'eff,'eff,'event,'state>,
+         validate: 'eff -> 'state -> bool,
+         apply: 'eff -> 'state -> 'state * 'event list,
+         ?onInvalid: string -> unit) =
+        interface IStmt<'eff,'event,'state> with
+            member _.Exec env =
+                let effect = effectExpr.Eval env
+                match eval_effect validate apply env.GameState effect with
+                | InvalidChain -> 
+                    let errorMsg = sprintf "Effect chain invalid for effect: %A" effect
+                    match onInvalid with
+                    | Some handler -> handler errorMsg; env
+                    | None -> failwith errorMsg
+                | ValidChain(newState, events) ->
+                    { env with GameState = newState; Trace = env.Trace @ events }
