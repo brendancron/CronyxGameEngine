@@ -1,7 +1,7 @@
 ﻿open Cronyx.Expressions
 open Cronyx.Statements
 open Cronyx
-open Cronyx.Effects
+open Cronyx.Core
 
 // --- Minimal dummy state so Env<'eff,'event,'state> can compile ---
 type DummyEffect = unit

@@ -6,8 +6,14 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- Layer 1: Core abstractions -->
+		<Compile Include="Core\Interfaces.fs" />
+
+		<!-- Layer 2: Basic systems -->
+		<Compile Include="Core\Environment.fs" />
 		<Compile Include="Effects.fs" />
-		<Compile Include="DSL\Environment.fs" />
+
+		<!-- Layer 3: DSL -->
 		<Compile Include="DSL\Expressions.fs" />
 		<Compile Include="DSL\Statements.fs" />
 	</ItemGroup>
