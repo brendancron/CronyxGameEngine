@@ -7,7 +7,7 @@ module Statements =
     (*
         Expression statement: evaluate, discard result
     *)
-    type ExprStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type ExprStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (expr: IExpr<'a,'eff,'event,'state>) =
         interface IStmt<'eff,'event,'state> with
             member _.Exec env =
@@ -18,7 +18,7 @@ module Statements =
     (*
         Sequential block of statements with its own lexical scope
     *)
-    type BlockStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type BlockStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (stmts: IStmt<'eff,'event,'state> list) =
         interface IStmt<'eff,'event,'state> with
             member _.Exec env0 =
@@ -29,7 +29,7 @@ module Statements =
     (*
         Debug printing
     *)
-    type PrintStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type PrintStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (expr: IExpr<'a,'eff,'event,'state>) =
         interface IStmt<'eff,'event,'state> with
             member _.Exec env =
@@ -40,7 +40,7 @@ module Statements =
     (*
         Control flow
     *)
-    type IfStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type IfStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (cond: IExpr<bool,'eff,'event,'state>,
          thenBranch: IStmt<'eff,'event,'state>,
          elseBranch: IStmt<'eff,'event,'state> option) =
@@ -54,7 +54,7 @@ module Statements =
                     | None -> env
 
 
-    type WhileStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type WhileStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (cond: IExpr<bool,'eff,'event,'state>,
          body: IStmt<'eff,'event,'state>) =
         interface IStmt<'eff,'event,'state> with
@@ -64,7 +64,7 @@ module Statements =
                 loop env0
 
 
-    type ForStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type ForStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (init: IStmt<'eff,'event,'state> option,
          cond: IExpr<bool,'eff,'event,'state>,
          increment: IStmt<'eff,'event,'state> option,
@@ -90,7 +90,7 @@ module Statements =
     (*
         Variables
     *)
-    type VarDeclStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type VarDeclStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (name: string, init: IExpr<'a,'eff,'event,'state>) =
         interface IStmt<'eff,'event,'state> with
             member _.Exec env =
@@ -98,7 +98,7 @@ module Statements =
                 Env.define name value env
 
 
-    type AssignStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type AssignStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (name: string, expr: IExpr<'a,'eff,'event,'state>) =
         interface IStmt<'eff,'event,'state> with
             member _.Exec env =
@@ -110,7 +110,7 @@ module Statements =
         Game Effects
     *)
 
-    type EffectStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event>>
+    type EffectStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (effectExpr: IExpr<'eff,'eff,'event,'state>,
          validate: 'eff -> 'state -> bool,
          apply: 'eff -> 'state -> 'state * 'event list,
