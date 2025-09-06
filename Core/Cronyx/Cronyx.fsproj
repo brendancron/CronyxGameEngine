@@ -11,11 +11,16 @@
 
 		<!-- Layer 2: Basic systems -->
 		<Compile Include="Core\Environment.fs" />
-		<Compile Include="Effects.fs" />
+		<Compile Include="Core\Effects.fs" />
 
 		<!-- Layer 3: DSL -->
 		<Compile Include="DSL\Expressions.fs" />
 		<Compile Include="DSL\Statements.fs" />
+
+		<!-- Layer 4: Parsing -->
+		<Compile Include="Parsing\Tokens.fs" />
+		<Compile Include="Parsing\Parser.fs" />
+		<Compile Include="Parsing\Lexer.fs" />
 	</ItemGroup>
 
 </Project>

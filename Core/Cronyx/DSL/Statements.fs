@@ -1,7 +1,6 @@
 ﻿namespace Cronyx
 
 open Cronyx.Core
-open Cronyx.Effects
 
 module Statements = 
     (*
@@ -123,14 +122,14 @@ module Statements =
                 let originalTriggers = env.GameState.Triggers
                 // Step 2: Resolve all modifiers
                 let modified_effect, provenance =
-                    applyModifiers env.GameState.Modifiers effect env.Provenance
+                    Effects.applyModifiers env.GameState.Modifiers effect env.Provenance
                 // Step 3: Determine validity
                 if (validate modified_effect env.GameState) then
                     // Step 4: Apply effect
                     let state', events = apply modified_effect env.GameState
 
                     // Step 5: Collect trigger-spawned statements
-                    let triggeredStmts = applyTriggers originalTriggers events
+                    let triggeredStmts = Effects.applyTriggers originalTriggers events
 
                     // Step 6: Update environment with new state + events
                     let env' = 
