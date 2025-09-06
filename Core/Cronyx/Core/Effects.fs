@@ -1,6 +1,4 @@
-﻿namespace Cronyx
-
-open Cronyx.Core
+﻿namespace Cronyx.Core
 
 module Effects = 
 

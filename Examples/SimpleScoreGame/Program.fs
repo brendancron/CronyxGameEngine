@@ -105,7 +105,7 @@ let initialState = {
         "Bob", 100 ]
         |> Map.ofList
     Modifiers = [doubleHeal]
-    Triggers = [reflectAliceOnBob]
+    Triggers = [reflectAliceOnBob;reflectBobOnAlice]
 }
 
 // Giga drain example
