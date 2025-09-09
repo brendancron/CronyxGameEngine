@@ -37,6 +37,8 @@ module Lexer =
             | '.' -> makeToken DOT "." line :: scanTokens source (i+1) line
             | '-' -> makeToken MINUS "-" line :: scanTokens source (i+1) line
             | '+' -> makeToken PLUS "+" line :: scanTokens source (i+1) line
+            | '*' -> makeToken STAR "*" line :: scanTokens source (i+1) line
+            | '/' -> makeToken SLASH "/" line :: scanTokens source (i+1) line
             | ';' -> makeToken SEMICOLON ";" line :: scanTokens source (i+1) line
             | '!' when i+1 < source.Length && source.[i+1] = '=' ->
                 makeToken BANG_EQUAL "!=" line :: scanTokens source (i+2) line
