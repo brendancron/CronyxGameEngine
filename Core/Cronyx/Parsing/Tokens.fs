@@ -10,6 +10,8 @@ module Tokens =
         | DOT
         | MINUS
         | PLUS
+        | STAR
+        | SLASH
         | SEMICOLON
         | BANG
         | BANG_EQUAL
