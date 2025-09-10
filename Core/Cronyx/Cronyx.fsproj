@@ -21,6 +21,10 @@
 		<Compile Include="Parsing\Tokens.fs" />
 		<Compile Include="Parsing\Parser.fs" />
 		<Compile Include="Parsing\Lexer.fs" />
+
+		<!-- Layer 5: Dummy Definitions -->
+		<Compile Include="Util\Dummy.fs" />
+		
 	</ItemGroup>
 
 </Project>
