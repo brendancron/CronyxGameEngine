@@ -16,6 +16,7 @@
 		<!-- Layer 3: DSL -->
 		<Compile Include="DSL\Expressions.fs" />
 		<Compile Include="DSL\Statements.fs" />
+		<Compile Include="DSL\Grammar.fs" />
 
 		<!-- Layer 4: Parsing -->
 		<Compile Include="Parsing\Tokens.fs" />

@@ -109,6 +109,19 @@ module Statements =
         Game Effects
     *)
 
+    type Env2<'state, 'event> = {
+        Scopes     : Map<string,obj> list
+        GameState  : 'state
+        Trace      : 'event list
+        Provenance : Set<string> list
+    }
+
+    type IExpr2<'a> = 
+        abstract member Eval : 'env -> 'a
+
+    type IStmt2 =
+        abstract member Exec : 'env -> 'env
+
     type EffectStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
         (effectExpr: IExpr<'eff,'eff,'event,'state>,
          validate: 'eff -> 'state -> bool,
