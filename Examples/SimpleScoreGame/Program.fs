@@ -1,5 +1,7 @@
 ﻿open Cronyx.DSL.Grammar
 
+(* Example Game definition *)
+
 type PlayerId = string
 
 type Effect =
@@ -41,6 +43,8 @@ type EffectEngine() =
         
         member this.EffectPostProcessor state events = []
 
+(* Test Section *)
+
 let initialState = {
     PlayerMap = [
         "Alice", 100
@@ -61,24 +65,6 @@ let finalEnv = damageStmt.Exec env
 printfn "Initial state: %A" initialState.PlayerMap
 printfn "Final state: %A" finalEnv.GameState.PlayerMap
 printfn "Events: %A" finalEnv.Trace
-
-//let validate_effect (effect: Effect) (state: State) : bool =
-//  let playerExists pid = Map.containsKey pid state.PlayerMap
-//  match effect with
-//  | Damage (pid, amt)
-//  | Heal   (pid, amt) ->
-//      playerExists pid && amt >= 0
-
-//let apply_effect (effect: Effect) (state: State) : State * Event list =
-//  match effect with
-//  | Damage (pid, amt) ->
-//      let cur = state.PlayerMap[pid]
-//      let pmap = state.PlayerMap |> Map.add pid (cur - amt)
-//      { state with PlayerMap = pmap }, [DamageResolved(pid, amt)]
-//  | Heal (pid, amt) ->
-//      let cur = state.PlayerMap[pid]
-//      let pmap = state.PlayerMap |> Map.add pid (cur + amt)
-//      { state with PlayerMap = pmap }, [HealResolved(pid, amt)]
 
 //// Modifier Definitions
 

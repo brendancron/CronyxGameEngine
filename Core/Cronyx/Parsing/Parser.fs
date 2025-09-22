@@ -1,84 +1,144 @@
 ﻿namespace Cronyx.Parsing
 
-open Cronyx.Core
-open Cronyx.Expressions
+open Cronyx.DSL.Grammar
+open Cronyx.DSL.Expressions
+open Cronyx.Parsing.Tokens
 
 module Parser =
-    let private peek = function
-        | [] -> None
-        | t::_ -> Some t
+    // The monadic type
+    type Parser<'a> = Token list -> ('a * Token list * string list)
 
-    let private advance = function
-        | [] -> failwith "Unexpected end of input"
-        | _::rest -> rest
+    // The 'return' function
+    let result (x: 'a) : Parser<'a> =
+        fun tokens -> x, tokens, []
 
-    let private expect (tt: Tokens.TokenType) (err: string) (ts: Tokens.Token list) =
-        match ts with
-        | t::rest when t.TokenType = tt -> rest, t
-        | _ -> failwith err
+    // The 'bind' function
+    let bind (p: Parser<'a>) (f: 'a -> Parser<'b>) : Parser<'b> =
+        fun tokens ->
+            let (value, restTokens, trace1) = p tokens
+            let (result, finalTokens, trace2) = (f value) restTokens
+            result, finalTokens, trace1 @ trace2
 
-    let private matchOne (tt: Tokens.TokenType) (ts: Tokens.Token list) =
-        match ts with
-        | t::rest when t.TokenType = tt -> Some (rest, t)
-        | _ -> None
+    type ParserBuilder() =
+        member _.Return(x) = result x
+        member _.Bind(p, f) = bind p f
+        member _.ReturnFrom(p: Parser<'a>) = p
+        member _.Zero() : Parser<'a> = fun _ -> failwith "Parser.Zero: no result"
 
-    let rec parseExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (ts: Tokens.Token list)
-        : IExpr<int,'eff,'event,'state> * Tokens.Token list =
-        parseAddition ts
+    let parser = ParserBuilder()
 
-    and private parseAddition<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (ts: Tokens.Token list)
-        : IExpr<int,'eff,'event,'state> * Tokens.Token list =
-        let rec loop (lhs: IExpr<int,'eff,'event,'state>) (ts: Tokens.Token list) =
-            match peek ts with
-            | Some { Tokens.TokenType = Tokens.TokenType.PLUS } ->
-                let ts1 = advance ts
-                let rhs, ts2 = parseUnary ts1
-                let lhs' =
-                    AddExpr<int, int, int,'eff,'event,'state>(lhs, rhs, (+)) :> IExpr<_,_,_,_>
-                loop lhs' ts2
-            | Some { Tokens.TokenType = Tokens.TokenType.MINUS } ->
-                let ts1 = advance ts
-                let rhs, ts2 = parseUnary ts1
-                let lhs' =
-                    SubExpr<int, int, int,'eff,'event,'state>(lhs, rhs, (-)) :> IExpr<_,_,_,_>
-                loop lhs' ts2
-            | _ -> lhs, ts
-        let first, rest = parseUnary ts
-        loop first rest
+    let log (msg: string) : Parser<unit> =
+        fun tokens -> (), tokens, [msg]
 
-    and private parseUnary<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-          (ts: Tokens.Token list)
-          : IExpr<int,'eff,'event,'state> * Tokens.Token list =
-        match peek ts with
-        | Some { Tokens.TokenType = Tokens.TokenType.MINUS } ->
-            let ts1 = advance ts
-            let expr, ts2 = parseUnary ts1
-            (NegExpr<int,'eff,'event,'state>(expr, (fun x -> -x)) :> IExpr<_,_,_,_>), ts2
-        | _ ->
-            parsePrimary ts
+    let matchToken (expected: TokenType) : Parser<Token> =
+        fun tokens ->
+            match tokens with
+            | [] ->
+                failwithf "Unexpected end of input. Expected %A." expected
+            | t::ts when t.TokenType = expected ->
+                t, ts, []
+            | t::_ ->
+                failwithf "Unexpected token %A at line %d. Expected %A."
+                    t.TokenType t.Line expected
 
-    and private parsePrimary<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (ts: Tokens.Token list)
-        : IExpr<int,'eff,'event,'state> * Tokens.Token list =
-        match ts with
-        | { Tokens.TokenType = Tokens.TokenType.NUMBER; Lexeme = lex } :: rest ->
-            // NUMBER -> IntExpr
-            (IntExpr<'eff,'event,'state>(int lex) :> IExpr<_,_,_,_>), rest
-        | { Tokens.TokenType = Tokens.TokenType.IDENTIFIER; Lexeme = name } :: rest ->
-            // IDENTIFIER -> assume int variable for arithmetic
-            (VarExpr<int,'eff,'event,'state>(name) :> IExpr<_,_,_,_>), rest
-        | { Tokens.TokenType = Tokens.TokenType.LPAREN } :: rest ->
-            let expr, rest' = parseExpr<'eff,'event,'state> rest
-            let rest'', _ = expect Tokens.TokenType.RPAREN "Expected ')' after expression" rest'
-            expr, rest''
-        | t::_ ->
-            failwithf "Unexpected token in primary: %A at line %d" t.TokenType t.Line
-        | [] ->
-            failwith "Unexpected end of input in primary"
+    let peekToken : Parser<Token option> =
+        fun tokens ->
+            match tokens with
+            | []      -> None, tokens, []
+            | t :: _  -> Some t, tokens, []
 
-    let parseArithmetic<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (tokens: Tokens.Token list)
-        : IExpr<int,'eff,'event,'state> * Tokens.Token list =
-        parseExpr tokens
+    let rec parseExpr<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>> =
+        parser {
+            let! factor = parseSum<'s,'e,'ev>
+            return factor
+        }
+
+    and parseSum<'s,'e,'ev>
+        : Parser<IExpr<int,'s,'e,'ev>> =
+        parser {
+            let! first = parseFactor<'s,'e,'ev>
+
+            let rec loop lhs =
+                parser {
+                    match! peekToken with
+                    | Some t when t.TokenType = Tokens.TokenType.PLUS ->
+                        let! _ = matchToken TokenType.PLUS
+                        do! log "Matched + in sum"
+                        let! rhs = parseFactor<'s,'e,'ev>
+                        let lhs' = AddExpr(lhs, rhs, (+)) :> IExpr<_,_,_,_>
+                        return! loop lhs'
+                    | _ ->
+                        return lhs
+                }
+
+            return! loop first
+        }
+
+    and parseFactor<'s,'e,'ev>
+        : Parser<IExpr<int,'s,'e,'ev>> =
+        parser {
+            let! first = parsePrimary<'s,'e,'ev>
+
+            let rec loop lhs : Parser<IExpr<int,'s,'e,'ev>> =
+                parser {
+                    match! peekToken with
+                    | Some t when t.TokenType = TokenType.STAR ->
+                        let! _ = matchToken TokenType.STAR
+                        do! log "Matched * in factor"
+                        let! rhs = parsePrimary<'s,'e,'ev>
+                        let lhs' = MulExpr(lhs, rhs, (*)) :> IExpr<_,_,_,_>
+                        return! loop lhs'
+                    | _ ->
+                        return lhs
+                }
+
+            return! loop first
+        }
+
+    and parseUnary<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>> =
+        parser {
+            let! tokOpt = peekToken
+            match tokOpt with
+            | Some t when t.TokenType = TokenType.MINUS ->
+                // consume the minus
+                let! _ = matchToken TokenType.MINUS
+                do! log "Matched - in unary"
+                // parse the right-hand side
+                let! expr = parseUnary<'s,'e,'ev>
+                return NegExpr(expr, (fun x -> -x)) :> IExpr<_,_,_,_>
+            | _ ->
+                // otherwise delegate to primary
+                return! parsePrimary<'s,'e,'ev>
+        }
+
+    and parsePrimary<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>> =
+        parser {
+            let! tokOpt = peekToken
+            match tokOpt with
+            | Some { TokenType = TokenType.NUMBER; Lexeme = lex } ->
+                let! t = matchToken Tokens.TokenType.NUMBER
+                do! log "Matched number in primary"
+                return IntExpr<'s,'e,'ev>(int t.Lexeme) :> IExpr<_,_,_,_>
+
+            | Some { TokenType = TokenType.IDENTIFIER; Lexeme = name } ->
+                let! t = matchToken Tokens.TokenType.IDENTIFIER
+                do! log "Matched identifier in primary"
+                return VarExpr<int,'s,'e,'ev>(t.Lexeme) :> IExpr<_,_,_,_>
+
+            | Some { TokenType = TokenType.LPAREN } ->
+                let! _ = matchToken Tokens.TokenType.LPAREN
+                do! log "Matched ( in primary"
+                let! expr = parseExpr<'s,'e,'ev>
+                let! _ = matchToken Tokens.TokenType.RPAREN
+                do! log "Matched ) in primary"
+                return expr
+
+            | Some t ->
+                failwithf "Unexpected token in primary: %A at line %d" t.TokenType t.Line
+
+            | None ->
+                failwith "Unexpected end of input in primary"
+        }
+
+    let parse<'s,'e,'ev> (tokens: Tokens.Token list) =
+        parseExpr<'s,'e,'ev> tokens

@@ -1,31 +1,25 @@
 ﻿namespace Cronyx.Core
 
+open Cronyx.DSL.Grammar
+
 module Effects = 
 
-    let applyModifiers
-        (modifiers : IEffectModifier<'eff> list)
-        (effect : 'eff)
-        (provenance : Set<string> list)
-        : 'eff * Set<string> list =
-        modifiers
-        |> List.fold (fun (eff, prov) (m: IEffectModifier<'eff>) ->
-            if Env.containsProvenance m.Id prov then
-                eff, prov
-            else
-                let eff' = m.Modify eff
-                eff', Env.addProvenanceHelper m.Id prov
-        ) (effect, provenance)
+    (* 
+        IEffectEngine Definition
 
+        This is the portion of the game an implementor is responsible for implementing
 
-    let applyTriggers
-        (triggers: IEventTrigger<'eff,'event,'state> list)
-        (events: 'event list)
-        : (IStmt<'eff,'event,'state> * string) list =
+        EffectPreProcessor - Contains any modification logic required for the initial effect to be calculated
 
-        events
-        |> List.collect (fun ev ->
-            triggers
-            |> List.choose (fun (t: IEventTrigger<'eff,'event,'state>) ->
-                match t.OnEvent ev with
-                | Some stmt -> Some (stmt, t.Id)
-                | None      -> None))
+        EffectValidator - Validates whether or not an effect should actually apply
+
+        EffectApplier - Determines how the effect gets applied
+
+        EffectPostProcessor - Determines the consequences of the applied effect, potentially cascading effects
+    *)
+
+    type IEffectEngine<'state, 'effect, 'event> =
+        abstract member EffectPreProcessor: 'effect -> 'effect;
+        abstract member EffectValidator: 'state -> 'effect -> bool;
+        abstract member EffectApplier: 'state -> 'effect -> 'state * 'event list;
+        abstract member EffectPostProcessor: 'state -> 'event list -> (IStmt<'state, 'effect, 'event> * string) list

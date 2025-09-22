@@ -1,24 +1,23 @@
-﻿//open Cronyx.Core
-//open Cronyx.Parsing
-//open Cronyx.Parsing.Parser
-//open Cronyx.Util.Dummy
+﻿open Cronyx.DSL
 
-//let source = "3 + 4 * 5"
+open Cronyx.Parsing.Lexer
+open Cronyx.Parsing.Parser
+open Cronyx.DSL.Grammar
+open Cronyx.DSL.Environment
 
-//let tokens = Lexer.scan source
+let source = "3 + 4 * 5"
 
-//printf "%A" (tokens)
+let tokens = scan source
 
-//let expr, rest = parseArithmetic<DummyEffect,DummyEvent,DummyState> tokens
+printfn "Tokens: %A" (tokens |> List.map (fun t -> t.TokenType, t.Lexeme))
 
-//let env = Env.empty emptyState
-//let value : int = expr.Eval env
+let (expr: IExpr<int, string, string, string>), remaining, logs = parse<string,string,string> tokens
 
-//printfn "Tokens: %A" (tokens |> List.map (fun t -> t.TokenType, t.Lexeme))
-//printfn "Value: %d" value
+printfn "Expr: %A" expr
+printfn "Remaining Tokens: %A" remaining
+printfn "Logs: %A" logs
 
-open Cronyx.DSL
+let initialEnv: Env<string, string> = Env.intial "hello"
 
-
-
-printf "%A" (7)
+let result = expr.Eval initialEnv
+printfn "Result: %A" result

@@ -1,60 +1,69 @@
-﻿namespace Cronyx
+﻿namespace Cronyx.DSL
 
-open Cronyx.Core
+open Cronyx.DSL.Environment
+open Cronyx.DSL.Grammar
 
 module Expressions =
-
-    (*
-        Utility eval expression to allow for simpler calling of expression evaluations
-    *)
-
-    let eval (expr: IExpr<'a,'eff,'event,'state>) (env: Env<'eff,'event,'state>) : 'a =
-        expr.Eval env
-
     (*
         Primary Type definitions go here
     *)
 
-    type BoolExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>> (b: bool) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type BoolExpr<'state, 'effect, 'event> (b: bool) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval _ = b
+        override this.ToString() =
+            sprintf "BoolExpr(%b)" b
 
-    type IntExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>> (i: int) =
-        interface IExpr<int,'eff,'event,'state> with
+    type IntExpr<'state, 'effect, 'event> (i: int) =
+        interface IExpr<int, 'state, 'effect, 'event> with
             member _.Eval _ = i
+        override this.ToString() =
+            sprintf "IntExpr(%d)" i
 
-    type StringExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>> (str: string) =
-        interface IExpr<string,'eff,'event,'state> with
+    type StringExpr<'state, 'effect, 'event> (str: string) =
+        interface IExpr<string, 'state, 'effect, 'event> with
             member _.Eval _ = str
+        override this.ToString() =
+            sprintf "StringExpr(%s)" str
 
-    type FloatExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>> (f: float) =
-        interface IExpr<float,'eff,'event,'state> with
+    type FloatExpr<'state, 'effect, 'event> (f: float) =
+        interface IExpr<float, 'state, 'effect, 'event> with
             member _.Eval _ = f
+        override this.ToString() =
+            sprintf "FloatExpr(%f)" f
+
+    type EffectExpr<'state, 'effect, 'event>
+        (effect: 'effect) =
+        interface IExpr<'effect, 'state, 'effect, 'event> with
+            member _.Eval env = 
+                effect
+        override this.ToString() =
+            sprintf "EffectExpr(%s)" (effect.ToString())
 
     (*
         Logic Operators
     *)
 
-    type AndExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<bool,'eff,'event,'state>, r: IExpr<bool,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type AndExpr<'state, 'effect, 'event>
+        (l: IExpr<bool, 'state, 'effect, 'event>, r: IExpr<bool, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = if l.Eval env then r.Eval env else false
 
-    type OrExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<bool,'eff,'event,'state>, r: IExpr<bool,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type OrExpr<'state, 'effect, 'event>
+        (l: IExpr<bool, 'state, 'effect, 'event>, r: IExpr<bool, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = if l.Eval env then true else r.Eval env
 
-    type XorExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<bool,'eff,'event,'state>, r: IExpr<bool,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type XorExpr<'state, 'effect, 'event>
+        (l: IExpr<bool, 'state, 'effect, 'event>, r: IExpr<bool, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = l.Eval env <> r.Eval env
 
-    type NotExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (e: IExpr<bool,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type NotExpr<'state, 'effect, 'event>
+        (e: IExpr<bool, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = not (e.Eval env)
-
+    
     (*
         Arithmetic Operators
 
@@ -69,127 +78,117 @@ module Expressions =
         I think that the addition of seperate expressions will make it easier to debug
     *)
 
-    type AddExpr<'l,'r,'res,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'l,'eff,'event,'state>, r: IExpr<'r,'eff,'event,'state>, add: 'l -> 'r -> 'res) =
-        interface IExpr<'res,'eff,'event,'state> with
+    type AddExpr<'l, 'r, 'res, 'state, 'effect, 'event>
+        (l: IExpr<'l, 'state, 'effect, 'event>, r: IExpr<'r, 'state, 'effect, 'event>, add: 'l -> 'r -> 'res) =
+        interface IExpr<'res, 'state, 'effect, 'event> with
             member _.Eval env = add (l.Eval env) (r.Eval env)
+        override this.ToString() =
+            sprintf "AddExpr(%s, %s)" (l.ToString()) (r.ToString())
 
-    type SubExpr<'l,'r,'res,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'l,'eff,'event,'state>, r: IExpr<'r,'eff,'event,'state>, sub: 'l -> 'r -> 'res) =
-        interface IExpr<'res,'eff,'event,'state> with
+    type SubExpr<'l, 'r, 'res, 'state, 'effect, 'event>
+        (l: IExpr<'l, 'state, 'effect, 'event>, r: IExpr<'r, 'state, 'effect, 'event>, sub: 'l -> 'r -> 'res) =
+        interface IExpr<'res, 'state, 'effect, 'event> with
             member _.Eval env = sub (l.Eval env) (r.Eval env)
+        override this.ToString() =
+            sprintf "SubExpr(%s, %s)" (l.ToString()) (r.ToString())
 
-    type MulExpr<'l,'r,'res,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'l,'eff,'event,'state>, r: IExpr<'r,'eff,'event,'state>, mul: 'l -> 'r -> 'res) =
-        interface IExpr<'res,'eff,'event,'state> with
+    type MulExpr<'l, 'r, 'res, 'state, 'effect, 'event>
+        (l: IExpr<'l,'state, 'effect, 'event>, r: IExpr<'r, 'state, 'effect, 'event>, mul: 'l -> 'r -> 'res) =
+        interface IExpr<'res, 'state, 'effect, 'event> with
             member _.Eval env = mul (l.Eval env) (r.Eval env)
+        override this.ToString() =
+            sprintf "MulExpr(%s, %s)" (l.ToString()) (r.ToString())
 
-    type DivExpr<'l,'r,'res,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'l,'eff,'event,'state>, r: IExpr<'r,'eff,'event,'state>, div: 'l -> 'r -> 'res) =
-        interface IExpr<'res,'eff,'event,'state> with
+    type DivExpr<'l, 'r, 'res, 'state, 'effect, 'event>
+        (l: IExpr<'l, 'state, 'effect, 'event>, r: IExpr<'r, 'state, 'effect, 'event>, div: 'l -> 'r -> 'res) =
+        interface IExpr<'res, 'state, 'effect, 'event> with
             member _.Eval env = div (l.Eval env) (r.Eval env)
+        override this.ToString() =
+            sprintf "DivExpr(%s, %s)" (l.ToString()) (r.ToString())
 
-    type ModExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<int,'eff,'event,'state>, r: IExpr<int,'eff,'event,'state>) =
-        interface IExpr<int,'eff,'event,'state> with
+    type ModExpr<'state, 'effect, 'event>
+        (l: IExpr<int, 'state, 'effect, 'event>, r: IExpr<int, 'state, 'effect, 'event>) =
+        interface IExpr<int, 'state, 'effect, 'event> with
             member _.Eval env = l.Eval env % r.Eval env
+        override this.ToString() =
+            sprintf "ModExpr(%s, %s)" (l.ToString()) (r.ToString())
 
-    type AbsExpr<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (e: IExpr<'a,'eff,'event,'state>, abs: 'a -> 'a) =
-        interface IExpr<'a,'eff,'event,'state> with
+    type AbsExpr<'a, 'state, 'effect, 'event>
+        (e: IExpr<'a, 'state, 'effect, 'event>, abs: 'a -> 'a) =
+        interface IExpr<'a, 'state, 'effect, 'event> with
             member _.Eval env = abs (e.Eval env)
+        override this.ToString() =
+            sprintf "AbsExpr(%s)" (e.ToString())
 
-    type NegExpr<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (e: IExpr<'a,'eff,'event,'state>, neg: 'a -> 'a) =
-        interface IExpr<'a,'eff,'event,'state> with
+    type NegExpr<'a, 'state, 'effect, 'event>
+        (e: IExpr<'a, 'state, 'effect, 'event>, neg: 'a -> 'a) =
+        interface IExpr<'a, 'state, 'effect, 'event> with
             member _.Eval env = neg (e.Eval env)
-
+        override this.ToString() =
+            sprintf "NegExpr(%s)" (e.ToString())
 
     (*
         Comparison Expressions
     *)
 
-    type EqualExpr<'a,'eff,'event,'state when 'a : equality and 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'a,'eff,'event,'state>, r: IExpr<'a,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type EqualExpr<'a, 'state, 'effect, 'event when 'a : comparison>
+        (l: IExpr<'a, 'state, 'effect, 'event>, r: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = (l.Eval env = r.Eval env)
 
-    type NotEqualExpr<'a,'eff,'event,'state when 'a : equality and 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'a,'eff,'event,'state>, r: IExpr<'a,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type NotEqualExpr<'a, 'state, 'effect, 'event when 'a : comparison>
+        (l: IExpr<'a, 'state, 'effect, 'event>, r: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = not (l.Eval env = r.Eval env)
 
-    type GreaterThanExpr<'a,'eff,'event,'state when 'a : comparison and 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'a,'eff,'event,'state>, r: IExpr<'a,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type GreaterThanExpr<'a, 'state, 'effect, 'event when 'a : comparison>
+        (l: IExpr<'a, 'state, 'effect, 'event>, r: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = (l.Eval env > r.Eval env)
 
-    type LessThanExpr<'a,'eff,'event,'state when 'a : comparison and 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'a,'eff,'event,'state>, r: IExpr<'a,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type LessThanExpr<'a, 'state, 'effect, 'event when 'a : comparison>
+        (l: IExpr<'a, 'state, 'effect, 'event>, r: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = (l.Eval env < r.Eval env)
 
-    type GreaterOrEqualExpr<'a,'eff,'event,'state when 'a : comparison and 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'a,'eff,'event,'state>, r: IExpr<'a,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type GreaterOrEqualExpr<'a, 'state, 'effect, 'event when 'a : comparison>
+        (l: IExpr<'a, 'state, 'effect, 'event>, r: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = (l.Eval env >= r.Eval env)
 
-    type LessOrEqualExpr<'a,'eff,'event,'state when 'a : comparison and 'state :> IGameState<'eff,'event,'state>>
-        (l: IExpr<'a,'eff,'event,'state>, r: IExpr<'a,'eff,'event,'state>) =
-        interface IExpr<bool,'eff,'event,'state> with
+    type LessOrEqualExpr<'a, 'state, 'effect, 'event when 'a : comparison>
+        (l: IExpr<'a, 'state, 'effect, 'event>, r: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IExpr<bool, 'state, 'effect, 'event> with
             member _.Eval env = (l.Eval env <= r.Eval env)
 
     (*
         Conditional Expressions
     *)
 
-    type TernaryExpr<'r,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (c: IExpr<bool,'eff,'event,'state>, t: IExpr<'r,'eff,'event,'state>, e: IExpr<'r,'eff,'event,'state>) =
-        interface IExpr<'r,'eff,'event,'state> with
+    type IfExpr<'r, 'state, 'effect, 'event>
+        (c: IExpr<bool, 'state, 'effect, 'event>, t: IExpr<'r, 'state, 'effect, 'event>, e: IExpr<'r, 'state, 'effect, 'event>) =
+        interface IExpr<'r, 'state, 'effect, 'event> with
             member _.Eval env = if c.Eval env then t.Eval env else e.Eval env
-
 
     (*
         Lambda
     *)
 
-    type LambdaExpr<'a,'b,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+    type LambdaExpr<'a, 'b, 'state, 'effect, 'event>
         (f: 'a -> 'b) =
-        interface IExpr<'a -> 'b,'eff,'event,'state> with
+        interface IExpr<'a -> 'b, 'state, 'effect, 'event> with
             member _.Eval _ = f
 
-    type ApplyExpr<'a,'b,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (f: IExpr<'a -> 'b,'eff,'event,'state>, arg: IExpr<'a,'eff,'event,'state>) =
-        interface IExpr<'b,'eff,'event,'state> with
+    type ApplyExpr<'a, 'b, 'state, 'effect, 'event>
+        (f: IExpr<'a -> 'b, 'state, 'effect, 'event>, arg: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IExpr<'b, 'state, 'effect, 'event> with
             member _.Eval env = (f.Eval env) (arg.Eval env)
 
     (*
         Variables
     *)
 
-    type VarExpr<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+    type VarExpr<'a, 'state, 'effect, 'event>
         (name: string) =
-        interface IExpr<'a,'eff,'event,'state> with
+        interface IExpr<'a, 'state, 'effect, 'event> with
             member _.Eval env = Env.get name env |> unbox<'a>
-
-    (*
-        Effects
-    *)
-
-    type EffectExpr<'event,'eff,'state when 'state :> IGameState<'eff,'event,'state>>
-        (effect: 'eff,
-         provenance: Set<string>) =
-        interface IExpr<TaggedEffect<'eff>,'eff,'event,'state> with
-            member _.Eval env =
-                { Effect = effect; Provenance = provenance }
-
-    (*
-        Queries
-    *)
-
-    type FoldEventsExpr<'event,'a,'eff,'state when 'state :> IGameState<'eff,'event,'state>>
-        (folder   : 'a -> 'event -> 'a,
-         seed     : 'a) =
-        interface IExpr<'a,'eff,'event,'state> with
-            member _.Eval env =
-                env.Trace |> List.fold folder seed

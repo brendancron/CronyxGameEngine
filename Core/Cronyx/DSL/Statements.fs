@@ -1,164 +1,192 @@
 ﻿namespace Cronyx
 
-open Cronyx.Core
+open Cronyx.Core.Effects
+open Cronyx.DSL.Grammar
+open Cronyx.DSL.Environment
 
 module Statements = 
-    (*
-        Expression statement: evaluate, discard result
-    *)
-    type ExprStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (expr: IExpr<'a,'eff,'event,'state>) =
-        interface IStmt<'eff,'event,'state> with
+
+    type EffectStmt<'state, 'effect, 'event>
+        (effectEngine: IEffectEngine<'state, 'effect, 'event>,
+        effectExpr: IExpr<'effect, 'state, 'effect, 'event>) =
+        interface IStmt<'state, 'effect, 'event> with
             member _.Exec env =
-                expr.Eval env |> ignore
-                env
-
-
-    (*
-        Sequential block of statements with its own lexical scope
-    *)
-    type BlockStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (stmts: IStmt<'eff,'event,'state> list) =
-        interface IStmt<'eff,'event,'state> with
-            member _.Exec env0 =
-                let env1 = Env.push env0
-                let env2 = (env1, stmts) ||> List.fold (fun e s -> s.Exec e)
-                Env.pop env2
-
-    (*
-        Debug printing
-    *)
-    type PrintStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (expr: IExpr<'a,'eff,'event,'state>) =
-        interface IStmt<'eff,'event,'state> with
-            member _.Exec env =
-                printfn "%A" (expr.Eval env)
-                env
-
-
-    (*
-        Control flow
-    *)
-    type IfStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (cond: IExpr<bool,'eff,'event,'state>,
-         thenBranch: IStmt<'eff,'event,'state>,
-         elseBranch: IStmt<'eff,'event,'state> option) =
-        interface IStmt<'eff,'event,'state> with
-            member _.Exec env =
-                if cond.Eval env then
-                    thenBranch.Exec env
-                else
-                    match elseBranch with
-                    | Some e -> e.Exec env
-                    | None -> env
-
-
-    type WhileStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (cond: IExpr<bool,'eff,'event,'state>,
-         body: IStmt<'eff,'event,'state>) =
-        interface IStmt<'eff,'event,'state> with
-            member _.Exec env0 =
-                let rec loop env =
-                    if cond.Eval env then loop (body.Exec env) else env
-                loop env0
-
-
-    type ForStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (init: IStmt<'eff,'event,'state> option,
-         cond: IExpr<bool,'eff,'event,'state>,
-         increment: IStmt<'eff,'event,'state> option,
-         body: IStmt<'eff,'event,'state>) =
-        interface IStmt<'eff,'event,'state> with
-            member _.Exec env0 =
-                let env1 =
-                    match init with
-                    | Some i -> i.Exec env0
-                    | None   -> env0
-                let rec loop env =
-                    if cond.Eval env then
-                        let afterBody = body.Exec env
-                        let afterInc =
-                            match increment with
-                            | Some inc -> inc.Exec afterBody
-                            | None     -> afterBody
-                        loop afterInc
-                    else env
-                loop env1
-
-
-    (*
-        Variables
-    *)
-    type VarDeclStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (name: string, init: IExpr<'a,'eff,'event,'state>) =
-        interface IStmt<'eff,'event,'state> with
-            member _.Exec env =
-                let value = init.Eval env |> box
-                Env.define name value env
-
-
-    type AssignStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (name: string, expr: IExpr<'a,'eff,'event,'state>) =
-        interface IStmt<'eff,'event,'state> with
-            member _.Exec env =
-                let value = expr.Eval env |> box
-                Env.assign name value env
-
-
-    (*
-        Game Effects
-    *)
-
-    type Env2<'state, 'event> = {
-        Scopes     : Map<string,obj> list
-        GameState  : 'state
-        Trace      : 'event list
-        Provenance : Set<string> list
-    }
-
-    type IExpr2<'a> = 
-        abstract member Eval : 'env -> 'a
-
-    type IStmt2 =
-        abstract member Exec : 'env -> 'env
-
-    type EffectStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-        (effectExpr: IExpr<'eff,'eff,'event,'state>,
-         validate: 'eff -> 'state -> bool,
-         apply: 'eff -> 'state -> 'state * 'event list,
-         ?onInvalid: string -> unit) =
-        interface IStmt<'eff,'event,'state> with
-            member _.Exec env =
-                // Step 1: Resolve the effect
                 let effect = effectExpr.Eval env
-                // we want to use the original triggers to spawn new events
-                let originalTriggers = env.GameState.Triggers
-                // Step 2: Resolve all modifiers
-                let modified_effect, provenance =
-                    Effects.applyModifiers env.GameState.Modifiers effect env.Provenance
-                // Step 3: Determine validity
-                if (validate modified_effect env.GameState) then
-                    // Step 4: Apply effect
-                    let state', events = apply modified_effect env.GameState
-
-                    // Step 5: Collect trigger-spawned statements
-                    let triggeredStmts = Effects.applyTriggers originalTriggers events
-
-                    // Step 6: Update environment with new state + events
+                let preProcessedEffect = effectEngine.EffectPreProcessor effect
+                if not (effectEngine.EffectValidator env.GameState preProcessedEffect) then 
+                    env
+                else
+                    let (state', events) = effectEngine.EffectApplier env.GameState preProcessedEffect
+                    
                     let env' = 
                         { env with
                             GameState = state'
-                            Trace = env.Trace @ events
-                            Provenance = provenance }
+                            Trace = env.Trace @ events }
 
-                    // Step 7: Execute each triggered statement,
-                    // pushing trigger ID into provenance
-                    triggeredStmts
-                    |> List.fold (fun acc (stmt, triggerId) ->
-                        let acc1 = Env.pushProvenance acc
-                        let acc2 = Env.addProvenance triggerId acc1
-                        let acc3 = stmt.Exec acc2
-                        Env.popProvenance acc3
+                    (* This part is a litte ambiguous since we want to use the unprocessed state to postProcess *)
+                    let postProcessedStmts = effectEngine.EffectPostProcessor env.GameState events
+                    postProcessedStmts
+                    |> List.fold (fun accEnv (stmt, provId) ->
+                        (* TODO resolve provenance issues later *)
+                        stmt.Exec accEnv
                     ) env'
-                else
-                    env
+
+//    (*
+//        Expression statement: evaluate, discard result
+//    *)
+//    type ExprStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (expr: IExpr<'a,'eff,'event,'state>) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env =
+//                expr.Eval env |> ignore
+//                env
+
+
+//    (*
+//        Sequential block of statements with its own lexical scope
+//    *)
+//    type BlockStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (stmts: IStmt<'eff,'event,'state> list) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env0 =
+//                let env1 = Env.push env0
+//                let env2 = (env1, stmts) ||> List.fold (fun e s -> s.Exec e)
+//                Env.pop env2
+
+//    (*
+//        Debug printing
+//    *)
+//    type PrintStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (expr: IExpr<'a,'eff,'event,'state>) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env =
+//                printfn "%A" (expr.Eval env)
+//                env
+
+
+//    (*
+//        Control flow
+//    *)
+//    type IfStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (cond: IExpr<bool,'eff,'event,'state>,
+//         thenBranch: IStmt<'eff,'event,'state>,
+//         elseBranch: IStmt<'eff,'event,'state> option) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env =
+//                if cond.Eval env then
+//                    thenBranch.Exec env
+//                else
+//                    match elseBranch with
+//                    | Some e -> e.Exec env
+//                    | None -> env
+
+
+//    type WhileStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (cond: IExpr<bool,'eff,'event,'state>,
+//         body: IStmt<'eff,'event,'state>) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env0 =
+//                let rec loop env =
+//                    if cond.Eval env then loop (body.Exec env) else env
+//                loop env0
+
+
+//    type ForStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (init: IStmt<'eff,'event,'state> option,
+//         cond: IExpr<bool,'eff,'event,'state>,
+//         increment: IStmt<'eff,'event,'state> option,
+//         body: IStmt<'eff,'event,'state>) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env0 =
+//                let env1 =
+//                    match init with
+//                    | Some i -> i.Exec env0
+//                    | None   -> env0
+//                let rec loop env =
+//                    if cond.Eval env then
+//                        let afterBody = body.Exec env
+//                        let afterInc =
+//                            match increment with
+//                            | Some inc -> inc.Exec afterBody
+//                            | None     -> afterBody
+//                        loop afterInc
+//                    else env
+//                loop env1
+
+
+//    (*
+//        Variables
+//    *)
+//    type VarDeclStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (name: string, init: IExpr<'a,'eff,'event,'state>) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env =
+//                let value = init.Eval env |> box
+//                Env.define name value env
+
+
+//    type AssignStmt<'a,'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (name: string, expr: IExpr<'a,'eff,'event,'state>) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env =
+//                let value = expr.Eval env |> box
+//                Env.assign name value env
+
+
+//    (*
+//        Game Effects
+//    *)
+
+//    type Env2<'state, 'event> = {
+//        Scopes     : Map<string,obj> list
+//        GameState  : 'state
+//        Trace      : 'event list
+//        Provenance : Set<string> list
+//    }
+
+//    type IExpr2<'a> = 
+//        abstract member Eval : 'env -> 'a
+
+//    type IStmt2 =
+//        abstract member Exec : 'env -> 'env
+
+//    type EffectStmt<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
+//        (effectExpr: IExpr<'eff,'eff,'event,'state>,
+//         validate: 'eff -> 'state -> bool,
+//         apply: 'eff -> 'state -> 'state * 'event list,
+//         ?onInvalid: string -> unit) =
+//        interface IStmt<'eff,'event,'state> with
+//            member _.Exec env =
+//                // Step 1: Resolve the effect
+//                let effect = effectExpr.Eval env
+//                // we want to use the original triggers to spawn new events
+//                let originalTriggers = env.GameState.Triggers
+//                // Step 2: Resolve all modifiers
+//                let modified_effect, provenance =
+//                    Effects.applyModifiers env.GameState.Modifiers effect env.Provenance
+//                // Step 3: Determine validity
+//                if (validate modified_effect env.GameState) then
+//                    // Step 4: Apply effect
+//                    let state', events = apply modified_effect env.GameState
+
+//                    // Step 5: Collect trigger-spawned statements
+//                    let triggeredStmts = Effects.applyTriggers originalTriggers events
+
+//                    // Step 6: Update environment with new state + events
+//                    let env' = 
+//                        { env with
+//                            GameState = state'
+//                            Trace = env.Trace @ events
+//                            Provenance = provenance }
+
+//                    // Step 7: Execute each triggered statement,
+//                    // pushing trigger ID into provenance
+//                    triggeredStmts
+//                    |> List.fold (fun acc (stmt, triggerId) ->
+//                        let acc1 = Env.pushProvenance acc
+//                        let acc2 = Env.addProvenance triggerId acc1
+//                        let acc3 = stmt.Exec acc2
+//                        Env.popProvenance acc3
+//                    ) env'
+//                else
+//                    env
