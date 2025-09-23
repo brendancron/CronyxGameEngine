@@ -48,7 +48,38 @@ module Parser =
             | []      -> None, tokens, []
             | t :: _  -> Some t, tokens, []
     
-    let rec parseCallStmt<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>> =
+    /// Try p zero or more times, return list of results
+    let rec many (p: Parser<'a>) : Parser<'a list> =
+        fun tokens ->
+            try
+                let (x, rest1, trace1) = p tokens
+                let (xs, rest2, trace2) = many p rest1
+                (x :: xs, rest2, trace1 @ trace2)
+            with _ ->
+                ([], tokens, [])
+
+    /// Try p one or more times, return list of results
+    let many1 (p: Parser<'a>) : Parser<'a list> =
+        fun tokens ->
+            let (x, rest1, trace1) = p tokens
+            let (xs, rest2, trace2) = many p rest1
+            (x :: xs, rest2, trace1 @ trace2)
+
+    let (<|>) (p1: Parser<'a>) (p2: Parser<'a>) : Parser<'a> =
+        fun tokens ->
+            try
+                p1 tokens
+            with _ ->
+                p2 tokens
+
+    let rec parseProgram<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>> =
+        parser {
+            let! (stmts: IStmt<'s,'e,'ev> list) = many (parseCallStmt<'s,'e,'ev> <|> parseExprStmt<'s,'e,'ev>)
+            let! _ = matchToken TokenType.EOF
+            return BlockStmt(stmts) :> IStmt<'s,'e,'ev>
+        }
+
+    and parseCallStmt<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>> =
         parser {
             let! _ = matchToken TokenType.IDENTIFIER
             let! _ = matchToken TokenType.LPAREN
@@ -159,4 +190,4 @@ module Parser =
         }
 
     let parse<'s,'e,'ev> (tokens: Tokens.Token list) =
-        parseCallStmt<'s,'e,'ev> tokens
+        parseProgram<'s,'e,'ev> tokens

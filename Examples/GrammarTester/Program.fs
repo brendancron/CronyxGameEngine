@@ -15,7 +15,6 @@ printfn "Expr: %A" stmt
 printfn "Remaining Tokens: %A" remaining
 printfn "Logs: %A" logs
 
-// let initialEnv: Env<string, string> = Env.intial "hello"
+let initialEnv: Env<int, int> = Env.intial 0
 
-// let result = stmt.Exec initialEnv
-// printfn "Result: %A" result
+let result = stmt.Exec initialEnv

@@ -59,82 +59,82 @@ module Statements =
         override this.ToString() =
             sprintf "FnStmt(%A)" expr
 
-   (*
-       Sequential block of statements with its own lexical scope
-   *)
-   type BlockStmt<'state, 'effect, 'event>
-       (stmts: IStmt<'state, 'effect, 'event> list) =
-       interface IStmt<'state, 'effect, 'event> with
-           member _.Exec env0 =
-               let env1 = Env.push env0
-               let env2 = (env1, stmts) ||> List.fold (fun e s -> s.Exec e)
-               Env.pop env2
+    (*
+        Sequential block of statements with its own lexical scope
+    *)
+    type BlockStmt<'state, 'effect, 'event>
+        (stmts: IStmt<'state, 'effect, 'event> list) =
+        interface IStmt<'state, 'effect, 'event> with
+            member _.Exec env0 =
+                let env1 = Env.push env0
+                let env2 = (env1, stmts) ||> List.fold (fun e s -> s.Exec e)
+                Env.pop env2
 
-   (*
-       Control flow
-   *)
-   type IfStmt<'state, 'effect, 'event>
-       (cond: IExpr<bool, 'state, 'effect, 'event>,
-        thenBranch: IStmt<'state, 'effect, 'event>,
-        elseBranch: IStmt<'state, 'effect, 'event> option) =
-       interface IStmt<'state, 'effect, 'event> with
-           member _.Exec env =
-               if cond.Eval env then
-                   thenBranch.Exec env
-               else
-                   match elseBranch with
-                   | Some e -> e.Exec env
-                   | None -> env
+    (*
+        Control flow
+    *)
+    type IfStmt<'state, 'effect, 'event>
+        (cond: IExpr<bool, 'state, 'effect, 'event>,
+            thenBranch: IStmt<'state, 'effect, 'event>,
+            elseBranch: IStmt<'state, 'effect, 'event> option) =
+        interface IStmt<'state, 'effect, 'event> with
+            member _.Exec env =
+                if cond.Eval env then
+                    thenBranch.Exec env
+                else
+                    match elseBranch with
+                    | Some e -> e.Exec env
+                    | None -> env
 
 
-   type WhileStmt<'state, 'effect, 'event>
-       (cond: IExpr<bool, 'state, 'effect, 'event>,
+    type WhileStmt<'state, 'effect, 'event>
+        (cond: IExpr<bool, 'state, 'effect, 'event>,
         body: IStmt<'state, 'effect, 'event>) =
-       interface IStmt<'state, 'effect, 'event> with
-           member _.Exec env0 =
-               let rec loop env =
-                   if cond.Eval env then loop (body.Exec env) else env
-               loop env0
+        interface IStmt<'state, 'effect, 'event> with
+            member _.Exec env0 =
+                let rec loop env =
+                    if cond.Eval env then loop (body.Exec env) else env
+                loop env0
 
 
-   type ForStmt<'state, 'effect, 'event>
-       (init: IStmt<'state, 'effect, 'event> option,
+    type ForStmt<'state, 'effect, 'event>
+        (init: IStmt<'state, 'effect, 'event> option,
         cond: IExpr<bool, 'state, 'effect, 'event>,
         increment: IStmt<'state, 'effect, 'event> option,
         body: IStmt<'state, 'effect, 'event>) =
-       interface IStmt<'state, 'effect, 'event> with
-           member _.Exec env0 =
-               let env1 =
-                   match init with
-                   | Some i -> i.Exec env0
-                   | None   -> env0
-               let rec loop env =
-                   if cond.Eval env then
-                       let afterBody = body.Exec env
-                       let afterInc =
-                           match increment with
-                           | Some inc -> inc.Exec afterBody
-                           | None     -> afterBody
-                       loop afterInc
-                   else env
-               loop env1
+        interface IStmt<'state, 'effect, 'event> with
+            member _.Exec env0 =
+                let env1 =
+                    match init with
+                    | Some i -> i.Exec env0
+                    | None   -> env0
+                let rec loop env =
+                    if cond.Eval env then
+                        let afterBody = body.Exec env
+                        let afterInc =
+                            match increment with
+                            | Some inc -> inc.Exec afterBody
+                            | None     -> afterBody
+                        loop afterInc
+                    else env
+                loop env1
 
 
-   (*
-       Variables
-   *)
-   type VarDeclStmt<'a, 'state, 'effect, 'event>
-       (name: string, 
-       init: IExpr<'a, 'state, 'effect, 'event>) =
-       interface IStmt<'state, 'effect, 'event> with
-           member _.Exec env =
-               let value = init.Eval env |> box
-               Env.define name value env
+    (*
+        Variables
+    *)
+    type VarDeclStmt<'a, 'state, 'effect, 'event>
+        (name: string, 
+        init: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IStmt<'state, 'effect, 'event> with
+            member _.Exec env =
+                let value = init.Eval env |> box
+                Env.define name value env
 
 
-   type AssignStmt<'a, 'state, 'effect, 'event>
-       (name: string, expr: IExpr<'a, 'state, 'effect, 'event>) =
-       interface IStmt<'state, 'effect, 'event> with
-           member _.Exec env =
-               let value = expr.Eval env |> box
-               Env.assign name value env
+    type AssignStmt<'a, 'state, 'effect, 'event>
+        (name: string, expr: IExpr<'a, 'state, 'effect, 'event>) =
+        interface IStmt<'state, 'effect, 'event> with
+            member _.Exec env =
+                let value = expr.Eval env |> box
+                Env.assign name value env
