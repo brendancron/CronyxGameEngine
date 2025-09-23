@@ -170,9 +170,7 @@ module Parser =
                 return IntExpr<'s,'e,'ev>(int t.Lexeme) :> IExpr<_,_,_,_>
 
             | Some { TokenType = TokenType.IDENTIFIER; Lexeme = name } ->
-                let! t = matchToken Tokens.TokenType.IDENTIFIER
-                do! log "Matched identifier in primary"
-                return VarExpr<int,'s,'e,'ev>(t.Lexeme) :> IExpr<_,_,_,_>
+                return! parseIdentifier
 
             | Some { TokenType = TokenType.LPAREN } ->
                 let! _ = matchToken Tokens.TokenType.LPAREN
@@ -187,6 +185,13 @@ module Parser =
 
             | None ->
                 failwith "Unexpected end of input in primary"
+        }
+
+    and parseIdentifier<'s,'e,'ev> : Parser<IExpr<int, 's, 'e, 'ev>> =
+        parser {
+            let! t = matchToken Tokens.TokenType.IDENTIFIER
+            do! log "Matched identifier in primary"
+            return VarExpr<int,'s,'e,'ev>(t.Lexeme)
         }
 
     let parse<'s,'e,'ev> (tokens: Tokens.Token list) =
