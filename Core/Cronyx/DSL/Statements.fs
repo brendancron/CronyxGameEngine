@@ -1,4 +1,4 @@
-﻿namespace Cronyx
+﻿namespace Cronyx.DSL
 
 open Cronyx.Core.Effects
 open Cronyx.DSL.Grammar
@@ -12,7 +12,7 @@ module Statements =
         interface IStmt<'state, 'effect, 'event> with
             member _.Exec env =
                 let effect = effectExpr.Eval env
-                let preProcessedEffect = effectEngine.EffectPreProcessor effect
+                let preProcessedEffect = effectEngine.EffectPreProcessor env.GameState effect
                 if not (effectEngine.EffectValidator env.GameState preProcessedEffect) then 
                     env
                 else
@@ -27,8 +27,11 @@ module Statements =
                     let postProcessedStmts = effectEngine.EffectPostProcessor env.GameState events
                     postProcessedStmts
                     |> List.fold (fun accEnv (stmt, provId) ->
-                        (* TODO resolve provenance issues later *)
-                        stmt.Exec accEnv
+                        if accEnv.Provenance.Contains provId then
+                            accEnv
+                        else
+                            let provEnv = { accEnv with Provenance = accEnv.Provenance.Add provId }
+                            stmt.Exec provEnv
                     ) env'
 
 //    (*

@@ -19,7 +19,7 @@ module Effects =
     *)
 
     type IEffectEngine<'state, 'effect, 'event> =
-        abstract member EffectPreProcessor: 'effect -> 'effect;
+        abstract member EffectPreProcessor: 'state -> 'effect -> 'effect;
         abstract member EffectValidator: 'state -> 'effect -> bool;
         abstract member EffectApplier: 'state -> 'effect -> 'state * 'event list;
         abstract member EffectPostProcessor: 'state -> 'event list -> (IStmt<'state, 'effect, 'event> * string) list

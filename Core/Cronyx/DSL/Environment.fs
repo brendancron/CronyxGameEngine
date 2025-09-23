@@ -18,7 +18,7 @@ module Environment =
         Scopes: Map<string, obj> list
         GameState: 'state
         Trace: 'event list
-        Provenance: Set<string> list
+        Provenance: Set<string>
     }
 
     module Env =
@@ -26,7 +26,7 @@ module Environment =
             { Scopes = [ Map.empty ]
               GameState = initialState
               Trace = []
-              Provenance = [ Set.empty ] }
+              Provenance = Set.empty }
 
         let push (env: Env<'state, 'event>) =
             { env with Scopes = Map.empty :: env.Scopes }

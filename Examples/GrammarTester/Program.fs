@@ -5,7 +5,7 @@ open Cronyx.Parsing.Parser
 open Cronyx.DSL.Grammar
 open Cronyx.DSL.Environment
 
-let source = "3 + 4 * 5"
+let source = "3 + 4 * 5 + 8"
 
 let tokens = scan source
 

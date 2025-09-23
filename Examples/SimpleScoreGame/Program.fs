@@ -1,4 +1,8 @@
-﻿open Cronyx.DSL.Grammar
+﻿open Cronyx.Core.Effects
+open Cronyx.DSL.Grammar
+open Cronyx.DSL.Expressions
+open Cronyx.DSL.Statements
+open Cronyx.DSL.Environment
 
 (* Example Game definition *)
 
@@ -12,8 +16,14 @@ type Event =
   | DamageResolved of player: PlayerId * amount: int
   | HealResolved of player: PlayerId * amount: int
 
+type IEventTrigger<'state,'effect,'event> =
+    abstract member Id : string
+    abstract member TryFire : 'state -> 'event -> IStmt<'state,'effect,'event> option
+
 type State = {
     PlayerMap: Map<PlayerId, int>
+    Modifiers: (Effect -> Effect) list
+    Triggers  : IEventTrigger<State, Effect, Event> list
 }
 
 type State with
@@ -22,7 +32,8 @@ type State with
 
 type EffectEngine() = 
     interface IEffectEngine<State, Effect, Event> with
-        member this.EffectPreProcessor effect = effect
+        member this.EffectPreProcessor state effect = 
+            List.fold (fun acc modify -> modify acc) effect state.Modifiers
 
         member this.EffectValidator state effect = 
             match effect with
@@ -41,7 +52,41 @@ type EffectEngine() =
                 let pmap = state.PlayerMap |> Map.add pid (cur + amt)
                 { state with PlayerMap = pmap }, [HealResolved(pid, amt)]
         
-        member this.EffectPostProcessor state events = []
+        member this.EffectPostProcessor (state: State) (events: Event list)
+            : (IStmt<State, Effect, Event> * string) list =
+            events
+            |> List.collect (fun ev ->
+                state.Triggers
+                |> List.choose (fun trig ->
+                    trig.TryFire state ev
+                    |> Option.map (fun stmt -> (stmt, trig.Id))))
+
+let effectEngine = EffectEngine()
+
+(* Modifier Definitions *)
+
+let healingScale (percent: float) (target: PlayerId) (effect: Effect) = 
+    match effect with
+    | Heal (player, amt) when player = target -> Heal (player, int(float(amt) * percent))
+    | other    -> other
+
+(* Trigger Definitions *)
+
+let reflectDamage
+    (id: string)
+    (fromPid: PlayerId)
+    (toPid: PlayerId)
+    (percent: float) =
+    { new IEventTrigger<State, Effect, Event> with
+        member _.Id = id
+        member _.TryFire state event =
+            match event with
+            | DamageResolved (pid, amt) when pid = fromPid && amt > 0 && percent > 0.0 ->
+                let reflectedAmt = int(float(amt) * percent)
+                if reflectedAmt <= 0 then None else
+                    let stmt = EffectStmt(effectEngine, EffectExpr(Damage(toPid, reflectedAmt)))
+                    Some stmt
+            | _ -> None }
 
 (* Test Section *)
 
@@ -50,9 +95,12 @@ let initialState = {
         "Alice", 100
         "Bob", 100 ]
         |> Map.ofList
+    Modifiers = [(healingScale 2.0 "Bob")]
+    Triggers = [
+        (reflectDamage "reflectAB" "Alice" "Bob" 0.5)
+        (reflectDamage "reflectBA" "Bob" "Alice" 0.5)
+    ]
 }
-
-let effectEngine = EffectEngine()
 
 let damageEffect = Damage("Alice", 30)
 let damageExpr = EffectExpr(damageEffect)
@@ -60,59 +108,16 @@ let damageStmt: IStmt<_,_,_> = EffectStmt(effectEngine, damageExpr)
 
 let env : Env<State, Event> = Env.intial initialState
 
-let finalEnv = damageStmt.Exec env
+let healEffect = Heal("Bob", 25)
+let healExpr = EffectExpr(healEffect)
+let healStmt: IStmt<_,_,_> = EffectStmt(effectEngine, healExpr)
+
+let intEnv = damageStmt.Exec env
+let finalEnv = healStmt.Exec intEnv
 
 printfn "Initial state: %A" initialState.PlayerMap
 printfn "Final state: %A" finalEnv.GameState.PlayerMap
 printfn "Events: %A" finalEnv.Trace
-
-//// Modifier Definitions
-
-//type HealingScale(id: string, target: string, percent: float) =
-//    interface IEffectModifier<Effect> with
-//        member _.Id = id
-//        member _.Modify(effect: Effect) =
-//            match effect with
-//            | Heal (player, amt) when player = target -> Heal (player, int(float(amt) * percent))
-//            | other    -> other
-
-//type GlobalHealingScale(id: string, percent: float) =
-//    interface IEffectModifier<Effect> with
-//        member _.Id = id
-//        member _.Modify(effect: Effect) =
-//            match effect with
-//            | Heal (player, amt) -> Heal (player, int(float(amt) * percent))
-//            | other    -> other
-
-//type HealExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-//    (player: PlayerId, amount: IExpr<int,'eff,'event,'state>) =
-//    interface IExpr<Effect,'eff,'event,'state> with
-//        member _.Eval env =
-//            let amt = amount.Eval env
-//            Heal(player, amt)
-
-//type DamageExpr<'eff,'event,'state when 'state :> IGameState<'eff,'event,'state>>
-//    (player: PlayerId, amount: IExpr<int,'eff,'event,'state>) =
-//    interface IExpr<Effect,'eff,'event,'state> with
-//        member _.Eval env =
-//            let amt = amount.Eval env
-//            Damage(player, amt)
-
-//type ReflectDamage(id: string, target: PlayerId, source: PlayerId, percent: float) =
-//    interface IEventTrigger<Effect, Event, State> with
-//        member _.Id = id
-//        member _.OnEvent ev =
-//            match ev with
-//            | DamageResolved (pid, amt) when pid = source ->
-//                let reflectedAmt = int (float amt * percent)
-//                Some (
-//                    EffectStmt(
-//                        DamageExpr(target, IntExpr reflectedAmt),
-//                        validate_effect,
-//                        apply_effect
-//                    ) :> Stmt
-//                )
-//            | _ -> None
 
 //let reflectAliceOnBob = ReflectDamage("reflect-Alice-Bob", "Alice", "Bob", 0.5)
 //let reflectBobOnAlice = ReflectDamage("reflect-Bob-Alice", "Bob", "Alice", 0.5)
