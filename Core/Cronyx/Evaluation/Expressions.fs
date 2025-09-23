@@ -1,7 +1,7 @@
-﻿namespace Cronyx.DSL
+﻿namespace Cronyx.Evaluation
 
-open Cronyx.DSL.Environment
-open Cronyx.DSL.Grammar
+open Cronyx.Evaluation.Environment
+open Cronyx.Evaluation.Grammar
 
 module Expressions =
     (*

@@ -7,15 +7,15 @@
 
 	<ItemGroup>
 		<!-- Layer 1: Core abstractions -->
-		<Compile Include="DSL\Environment.fs" />
-		<Compile Include="DSL\Grammar.fs" />
+		<Compile Include="Evaluation\Environment.fs" />
+		<Compile Include="Evaluation\Grammar.fs" />
 		<Compile Include="Core\Effects.fs" />
 		
 		<!-- Layer 2: Basic systems -->
 
 		<!-- Layer 3: DSL -->
-		<Compile Include="DSL\Expressions.fs" />
-		<Compile Include="DSL\Statements.fs" />
+		<Compile Include="Evaluation\Expressions.fs" />
+		<Compile Include="Evaluation\Statements.fs" />
 
 		<!-- Layer 4: Parsing -->
 		<Compile Include="Parsing\Tokens.fs" />

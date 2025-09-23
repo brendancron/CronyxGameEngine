@@ -1,6 +1,6 @@
-﻿namespace Cronyx.DSL
+﻿namespace Cronyx.Evaluation
 
-open Cronyx.DSL.Environment
+open Cronyx.Evaluation.Environment
 
 module Grammar =
     (* 

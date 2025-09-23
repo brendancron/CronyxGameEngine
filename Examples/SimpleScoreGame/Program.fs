@@ -1,8 +1,8 @@
 ﻿open Cronyx.Core.Effects
-open Cronyx.DSL.Grammar
-open Cronyx.DSL.Expressions
-open Cronyx.DSL.Statements
-open Cronyx.DSL.Environment
+open Cronyx.Evaluation.Grammar
+open Cronyx.Evaluation.Expressions
+open Cronyx.Evaluation.Statements
+open Cronyx.Evaluation.Environment
 
 (* Example Game definition *)
 
@@ -70,6 +70,12 @@ let healingScale (percent: float) (target: PlayerId) (effect: Effect) =
     | Heal (player, amt) when player = target -> Heal (player, int(float(amt) * percent))
     | other    -> other
 
+let damageScale (percent: float) (target: PlayerId) (effect: Effect) = 
+    match effect with
+    | Damage (player, amt) when player = target -> Damage (player, int(float(amt) * percent))
+    | other    -> other
+
+
 (* Trigger Definitions *)
 
 let reflectDamage
@@ -95,7 +101,10 @@ let initialState = {
         "Alice", 100
         "Bob", 100 ]
         |> Map.ofList
-    Modifiers = [(healingScale 2.0 "Bob")]
+    Modifiers = [
+        (healingScale 2.0 "Bob")
+        (damageScale 2.0 "Alice")
+    ]
     Triggers = [
         (reflectDamage "reflectAB" "Alice" "Bob" 0.5)
         (reflectDamage "reflectBA" "Bob" "Alice" 0.5)

@@ -1,4 +1,4 @@
-﻿namespace Cronyx.DSL
+﻿namespace Cronyx.Evaluation
 
 module Environment =
     

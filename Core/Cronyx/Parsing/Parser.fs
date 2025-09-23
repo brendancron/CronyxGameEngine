@@ -1,7 +1,8 @@
 ﻿namespace Cronyx.Parsing
 
-open Cronyx.DSL.Grammar
-open Cronyx.DSL.Expressions
+open Cronyx.Evaluation.Grammar
+open Cronyx.Evaluation.Expressions
+open Cronyx.Evaluation.Statements
 open Cronyx.Parsing.Tokens
 
 module Parser =
@@ -46,8 +47,25 @@ module Parser =
             match tokens with
             | []      -> None, tokens, []
             | t :: _  -> Some t, tokens, []
+    
+    let rec parseCallStmt<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>> =
+        parser {
+            let! _ = matchToken TokenType.IDENTIFIER
+            let! _ = matchToken TokenType.LPAREN
+            let! (expr : IExpr<int,'s,'e,'ev>) = parseExpr<'s,'e,'ev>
+            let! _ = matchToken TokenType.RPAREN
+            let! _ = matchToken TokenType.SEMICOLON
+            return FnStmt(expr, (printf "%d")) :> IStmt<'s,'e,'ev>
+        }
 
-    let rec parseExpr<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>> =
+    and parseExprStmt<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>> =
+        parser {
+            let! (expr : IExpr<int,'s,'e,'ev>) = parseExpr<'s,'e,'ev>
+            let! _ = matchToken TokenType.SEMICOLON
+            return ExprStmt(expr) :> IStmt<'s,'e,'ev>
+        }
+
+    and parseExpr<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>> =
         parser {
             let! factor = parseSum<'s,'e,'ev>
             return factor
@@ -141,4 +159,4 @@ module Parser =
         }
 
     let parse<'s,'e,'ev> (tokens: Tokens.Token list) =
-        parseExpr<'s,'e,'ev> tokens
+        parseCallStmt<'s,'e,'ev> tokens

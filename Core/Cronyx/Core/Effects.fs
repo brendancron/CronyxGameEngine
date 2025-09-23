@@ -1,6 +1,6 @@
 ﻿namespace Cronyx.Core
 
-open Cronyx.DSL.Grammar
+open Cronyx.Evaluation.Grammar
 
 module Effects = 
 
