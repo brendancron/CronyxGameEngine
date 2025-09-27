@@ -1,20 +1,13 @@
-﻿open Cronyx.Parsing.Lexer
-open Cronyx.Parsing.Parser
-open Cronyx.Evaluation.Grammar
-open Cronyx.Evaluation.Environment
+﻿
+open Cronyx.Evaluation.Models.Expressions
+open Cronyx.Evaluation.Components.Parser
+open Cronyx.Evaluation.Components.Lexer
+open Cronyx.Evaluation.Components.Inference
 
-let source = "print(3 + 4 * 5 + 8);"
-
+let source = "var id = (x) -> x; id 5.4"
 let tokens = scan source
+printfn "%A" tokens
+let expr   = parse tokens
+printfn "%A" expr
+inferType Map.empty expr |> printfn "%A"
 
-printfn "Tokens: %A" (tokens |> List.map (fun t -> t.TokenType, t.Lexeme))
-
-let stmt, remaining, logs = parse<int,int,int> tokens
-
-printfn "Expr: %A" stmt
-printfn "Remaining Tokens: %A" remaining
-printfn "Logs: %A" logs
-
-let initialEnv: Env<int, int> = Env.intial 0
-
-let result = stmt.Exec initialEnv

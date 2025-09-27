@@ -6,80 +6,86 @@ open Cronyx.Evaluation.Statements
 open Cronyx.Parsing.Tokens
 
 module Parser =
+
+    type ParseEnv<'s,'e,'ev> = {
+        Tokens   : Token list
+        EffectResolver : EffectResolver<'s,'e,'ev> }
+
     // The monadic type
-    type Parser<'a> = Token list -> ('a * Token list * string list)
+    type Parser<'a,'s,'e,'ev> = ParseEnv<'s,'e,'ev> -> ('a * ParseEnv<'s,'e,'ev> * string list)
 
     // The 'return' function
-    let result (x: 'a) : Parser<'a> =
-        fun tokens -> x, tokens, []
+    let result (x: 'a) : Parser<'a,'s,'e,'ev> =
+        fun env -> (x, env, [])
 
     // The 'bind' function
-    let bind (p: Parser<'a>) (f: 'a -> Parser<'b>) : Parser<'b> =
-        fun tokens ->
-            let (value, restTokens, trace1) = p tokens
-            let (result, finalTokens, trace2) = (f value) restTokens
-            result, finalTokens, trace1 @ trace2
+    let bind (p: Parser<'a,'s,'e,'ev>) (f: 'a -> Parser<'b,'s,'e,'ev>) : Parser<'b,'s,'e,'ev> =
+        fun env ->
+            let (value, env1, trace1) = p env
+            let (result, env2, trace2) = f value env1
+            (result, env2, trace1 @ trace2)
 
     type ParserBuilder() =
         member _.Return(x) = result x
         member _.Bind(p, f) = bind p f
-        member _.ReturnFrom(p: Parser<'a>) = p
-        member _.Zero() : Parser<'a> = fun _ -> failwith "Parser.Zero: no result"
+        member _.ReturnFrom(p: Parser<'a,'s,'e,'ev>) = p
+        member _.Zero() = fun _ -> failwith "Parser.Zero"
 
     let parser = ParserBuilder()
 
-    let log (msg: string) : Parser<unit> =
+    let log (msg: string) : Parser<unit,'s,'e,'ev> =
         fun tokens -> (), tokens, [msg]
 
-    let matchToken (expected: TokenType) : Parser<Token> =
-        fun tokens ->
-            match tokens with
-            | [] ->
-                failwithf "Unexpected end of input. Expected %A." expected
+    let matchToken (expected: TokenType) : Parser<Token,'s,'e,'ev> =
+        fun env ->
+            match env.Tokens with
             | t::ts when t.TokenType = expected ->
                 t, ts, []
             | t::_ ->
                 failwithf "Unexpected token %A at line %d. Expected %A."
                     t.TokenType t.Line expected
+            | [] ->
+                failwithf "Unexpected end of input. Expected %A." expected
 
-    let peekToken : Parser<Token option> =
-        fun tokens ->
-            match tokens with
-            | []      -> None, tokens, []
-            | t :: _  -> Some t, tokens, []
+    let peekToken : Parser<Token option,'s,'e,'ev> =
+        fun env ->
+            match env.Tokens with
+            | [] -> (None, env, [])
+            | t::_ -> (Some t, env, [])
     
-    /// Try p zero or more times, return list of results
-    let rec many (p: Parser<'a>) : Parser<'a list> =
-        fun tokens ->
+    let getEffectResolver : Parser<EffectResolver,'s,'e,'ev> =
+        fun env -> (env.EffectResolver, env, [])
+
+    let rec many (p: Parser<'a,'s,'e,'ev>) : Parser<'a list,'s,'e,'ev> =
+        fun env ->
             try
-                let (x, rest1, trace1) = p tokens
-                let (xs, rest2, trace2) = many p rest1
-                (x :: xs, rest2, trace1 @ trace2)
+                let (x, env1, trace1) = p env
+                let (xs, env2, trace2) = many p env1
+                (x :: xs, env2, trace1 @ trace2)
             with _ ->
-                ([], tokens, [])
+                ([], env, [])
 
-    /// Try p one or more times, return list of results
-    let many1 (p: Parser<'a>) : Parser<'a list> =
-        fun tokens ->
-            let (x, rest1, trace1) = p tokens
-            let (xs, rest2, trace2) = many p rest1
-            (x :: xs, rest2, trace1 @ trace2)
+    let many1 (p: Parser<'a,'s,'e,'ev>) : Parser<'a list,'s,'e,'ev> =
+        fun env ->
+            let (x, env1, trace1) = p env
+            let (xs, env2, trace2) = many p env1
+            (x :: xs, env2, trace1 @ trace2)
 
-    let (<|>) (p1: Parser<'a>) (p2: Parser<'a>) : Parser<'a> =
-        fun tokens ->
+    let (<|>) (p1: Parser<'a,'s,'e,'ev>) (p2: Parser<'a,'s,'e,'ev>) : Parser<'a,'s,'e,'ev> =
+        fun env ->
             try
-                p1 tokens
+                p1 env
             with _ ->
-                p2 tokens
+                p2 env
 
-    let rec parseProgram<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>> =
+    let rec parseProgram<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>,'s,'e,'ev> =
         parser {
             let! (stmts: IStmt<'s,'e,'ev> list) = many (parseCallStmt<'s,'e,'ev> <|> parseExprStmt<'s,'e,'ev>)
             let! _ = matchToken TokenType.EOF
             return BlockStmt(stmts) :> IStmt<'s,'e,'ev>
         }
 
-    and parseCallStmt<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>> =
+    and parseCallStmt<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>,'s,'e,'ev> =
         parser {
             let! _ = matchToken TokenType.IDENTIFIER
             let! _ = matchToken TokenType.LPAREN
@@ -89,21 +95,47 @@ module Parser =
             return FnStmt(expr, (printf "%d")) :> IStmt<'s,'e,'ev>
         }
 
-    and parseExprStmt<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>> =
+    and parseExprStmt<'s,'e,'ev> : Parser<IStmt<'s,'e,'ev>,'s,'e,'ev> =
         parser {
             let! (expr : IExpr<int,'s,'e,'ev>) = parseExpr<'s,'e,'ev>
             let! _ = matchToken TokenType.SEMICOLON
             return ExprStmt(expr) :> IStmt<'s,'e,'ev>
         }
 
-    and parseExpr<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>> =
+    and parseExpr<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>,'s,'e,'ev> =
         parser {
-            let! factor = parseSum<'s,'e,'ev>
-            return factor
+            let! expr = parseSum<'s,'e,'ev>
+            return expr
+        }
+
+    and parseArgs<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev> list,'s,'e,'ev> =
+        parser {
+            let! first = parseExpr<'s,'e,'ev>
+
+            let rec loop acc =
+                parser {
+                    let! tokOpt = peekToken
+                    match tokOpt with
+                    | Some { TokenType = TokenType.COMMA } ->
+                        let! _ = matchToken TokenType.COMMA
+                        let! next = parseExpr<'s,'e,'ev>
+                        return! loop (next :: acc)
+
+                    | Some { TokenType = TokenType.RPAREN } ->
+                        return List.rev acc
+
+                    | Some t ->
+                        failwithf "Unexpected token in arg list: %A" t.TokenType
+
+                    | None ->
+                        failwith "Unexpected EOF in arg list"
+                }
+
+            return! loop [first]
         }
 
     and parseSum<'s,'e,'ev>
-        : Parser<IExpr<int,'s,'e,'ev>> =
+        : Parser<IExpr<int,'s,'e,'ev>,'s,'e,'ev> =
         parser {
             let! first = parseFactor<'s,'e,'ev>
 
@@ -124,11 +156,11 @@ module Parser =
         }
 
     and parseFactor<'s,'e,'ev>
-        : Parser<IExpr<int,'s,'e,'ev>> =
+        : Parser<IExpr<int,'s,'e,'ev>,'s,'e,'ev> =
         parser {
             let! first = parsePrimary<'s,'e,'ev>
 
-            let rec loop lhs : Parser<IExpr<int,'s,'e,'ev>> =
+            let rec loop lhs : Parser<IExpr<int,'s,'e,'ev>,'s,'e,'ev> =
                 parser {
                     match! peekToken with
                     | Some t when t.TokenType = TokenType.STAR ->
@@ -144,7 +176,7 @@ module Parser =
             return! loop first
         }
 
-    and parseUnary<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>> =
+    and parseUnary<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>,'s,'e,'ev> =
         parser {
             let! tokOpt = peekToken
             match tokOpt with
@@ -160,7 +192,7 @@ module Parser =
                 return! parsePrimary<'s,'e,'ev>
         }
 
-    and parsePrimary<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>> =
+    and parsePrimary<'s,'e,'ev> : Parser<IExpr<int,'s,'e,'ev>,'s,'e,'ev> =
         parser {
             let! tokOpt = peekToken
             match tokOpt with
@@ -187,12 +219,33 @@ module Parser =
                 failwith "Unexpected end of input in primary"
         }
 
-    and parseIdentifier<'s,'e,'ev> : Parser<IExpr<int, 's, 'e, 'ev>> =
+    and parseEffect<'s,'e,'ev> : Parser<EffectExpr<'e, 's, 'e, 'ev>,'s,'e,'ev> =
         parser {
-            let! t = matchToken Tokens.TokenType.IDENTIFIER
+            let! identTok = matchToken TokenType.IDENTIFIER
+            let ident = identTok.Lexeme
+
+            let! _ = matchToken TokenType.LPAREN
+            let! args = parseArgs<'s,'e,'ev>
+            let! _ = matchToken TokenType.RPAREN
+
+            let! effectResolver = getEffectResolver
+
+            let call = { Name = ident; Args = args }
+
+            return EffectExpr<'s,'e,'ev>(call, resolver) :> IExpr<'e,'s,'e,'ev>
+        }
+
+    and parseIdentifier<'s,'e,'ev> : Parser<IExpr<int, 's, 'e, 'ev>,'s,'e,'ev> =
+        parser {
+            let! t = matchToken TokenType.IDENTIFIER
             do! log "Matched identifier in primary"
             return VarExpr<int,'s,'e,'ev>(t.Lexeme)
         }
 
-    let parse<'s,'e,'ev> (tokens: Tokens.Token list) =
-        parseProgram<'s,'e,'ev> tokens
+    let parse<'s,'e,'ev> (tokens: Token list) (effectResolver: EffectResolver) =
+        let env = {
+            Tokens = tokens
+            EffectResolver = effectResolver
+        }
+        parseProgram<'s,'e,'ev> env
+        

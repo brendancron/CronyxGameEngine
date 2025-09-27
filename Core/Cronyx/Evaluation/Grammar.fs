@@ -21,3 +21,11 @@ module Grammar =
 
     type IStmt<'state, 'effect, 'event> =
         abstract member Exec : Env<'state, 'event> -> Env<'state, 'event>
+
+    type EffectCall<'s,'e,'ev> = {
+        Name : string
+        Args : IExpr<obj,'s,'e,'ev> list
+    }
+
+    type EffectResolver<'s,'e,'ev> =
+        EffectCall<'s,'e,'ev> -> Env<'s,'ev> -> 'e

@@ -1,10 +1,10 @@
-﻿namespace Cronyx.Parsing
+﻿namespace Cronyx.Evaluation.Components
+
+open Cronyx.Evaluation.Models.Tokens
+open System
 
 module Lexer = 
     
-    open Tokens
-    open System
-
     let private keywords =
         dict [
             "and", AND
@@ -19,6 +19,46 @@ module Lexer =
             "var", VAR
             "while", WHILE
         ]
+
+    let private isDigit (c: char) = c >= '0' && c <= '9'
+
+    /// Parse a number starting at i0. Returns (lexeme, nextIndex, isFloat)
+    let private scanNumber (source: string) (i0: int) : string * int * bool =
+        let len = source.Length
+
+        let rec digits j =
+            let mutable k = j
+            while (k < len) && isDigit source.[k] do
+                k <- k + 1
+            k
+
+        let jInt = digits i0
+
+        // optional fractional part: '.' <digits>  (only if dot followed by digit)
+        let jFrac, isFloat1 =
+            if (jInt < len)
+               && ((source.[jInt] = '.'))
+               && ((jInt + 1) < len)
+               && isDigit source.[jInt + 1]
+            then
+                let k = digits (jInt + 1)
+                (k, true)
+            else
+                (jInt, false)
+
+        // optional exponent: [eE][+/-]?<digits>
+        let jExp, isFloat =
+            if (jFrac < len) && ((source.[jFrac] = 'e') || (source.[jFrac] = 'E')) then
+                let mutable k = jFrac + 1
+                if (k < len) && ((source.[k] = '+') || (source.[k] = '-')) then
+                    k <- k + 1
+                let k2 = digits k
+                if k2 > k then (k2, true) else (jFrac, isFloat1)
+            else
+                (jFrac, isFloat1)
+
+        let lexeme = source.Substring(i0, jExp - i0)
+        (lexeme, jExp, isFloat)
 
     let private makeToken tokenType lexeme line =
         { TokenType = tokenType; Lexeme = lexeme; Line = line }
@@ -67,14 +107,12 @@ module Lexer =
                     else
                         loop (j+1) (if source.[j] = '\n' then line+1 else line)
                 loop start line
-            | d when Char.IsDigit d ->
-                let start = i
-                let rec loop j =
-                    if j < source.Length && Char.IsDigit source.[j] then loop (j+1)
-                    else j
-                let j = loop i
-                let numVal = source.Substring(start, j-start)
-                makeToken NUMBER numVal line :: scanTokens source j line
+            | ch when Char.IsDigit ch ->
+                let (lexeme, j, isFloat) = scanNumber source i
+                let tok =
+                    if isFloat then makeToken FLOAT lexeme line
+                    else makeToken INT lexeme line
+                tok :: scanTokens source j line
             | a when Char.IsLetter a || a = '_' ->
                 let start = i
                 let rec loop j =

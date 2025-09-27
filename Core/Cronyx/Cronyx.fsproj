@@ -6,23 +6,16 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- Layer 1: Core abstractions -->
-		<Compile Include="Evaluation\Environment.fs" />
-		<Compile Include="Evaluation\Grammar.fs" />
-		<Compile Include="Core\Effects.fs" />
 		
-		<!-- Layer 2: Basic systems -->
+		<Compile Include="Evaluation\Models\Tokens.fs" />
+		<Compile Include="Evaluation\Models\Expressions.fs" />
+		<Compile Include="Evaluation\Models\Types.fs" />
+		<Compile Include="Evaluation\Models\FreeTypes.fs" />
+		<Compile Include="Evaluation\Models\Substitutions.fs" />
 
-		<!-- Layer 3: DSL -->
-		<Compile Include="Evaluation\Expressions.fs" />
-		<Compile Include="Evaluation\Statements.fs" />
-
-		<!-- Layer 4: Parsing -->
-		<Compile Include="Parsing\Tokens.fs" />
-		<Compile Include="Parsing\Parser.fs" />
-		<Compile Include="Parsing\Lexer.fs" />
-
-		<!-- Layer 5: Util Definitions -->
+		<Compile Include="Evaluation\Components\Lexer.fs" />
+		<Compile Include="Evaluation\Components\Parser.fs" />
+		<Compile Include="Evaluation\Components\Inference.fs" />
 		
 	</ItemGroup>
 

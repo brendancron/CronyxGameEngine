@@ -1,4 +1,4 @@
-﻿namespace Cronyx.Parsing
+﻿namespace Cronyx.Evaluation.Models
 
 module Tokens = 
     type TokenType =
@@ -23,7 +23,8 @@ module Tokens =
         | LESS_EQUAL
         | IDENTIFIER
         | STRING
-        | NUMBER
+        | INT
+        | FLOAT
         | AND
         | ELSE
         | FALSE
