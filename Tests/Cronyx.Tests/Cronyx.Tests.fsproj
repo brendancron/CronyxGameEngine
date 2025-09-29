@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <NoWarn>$(NoWarn);FS0988</NoWarn> 
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Expecto" Version="10.2.3" />
+    <PackageReference Include="YoloDev.Expecto.TestSdk" Version="0.15.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\Cronyx\Cronyx.fsproj" />
+  </ItemGroup>
+
+</Project>

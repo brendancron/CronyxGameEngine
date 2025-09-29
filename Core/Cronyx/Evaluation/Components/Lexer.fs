@@ -16,7 +16,6 @@ module Lexer =
             "or", OR
             "return", RETURN
             "true", TRUE
-            "var", VAR
             "while", WHILE
         ]
 

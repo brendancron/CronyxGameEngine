@@ -2,6 +2,8 @@ namespace Cronyx.Evaluation.Models
 
 module Types =
 
+    exception TypeError of string
+
     type PrimitiveType =
         | Bool
         | Int
@@ -22,3 +24,9 @@ module Types =
         | ForAll of string * PolyType
 
     type Context = Map<string, PolyType>
+
+    // Alias for readability
+    let intType    = TypeFunctionApplication (PrimitiveType Int)
+    let boolType   = TypeFunctionApplication (PrimitiveType Bool)
+    let stringType = TypeFunctionApplication (PrimitiveType String)
+    let floatType  = TypeFunctionApplication (PrimitiveType Float)

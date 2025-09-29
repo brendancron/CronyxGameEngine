@@ -34,7 +34,6 @@ module Tokens =
         | OR
         | RETURN
         | TRUE
-        | VAR
         | WHILE
         | EOF
 

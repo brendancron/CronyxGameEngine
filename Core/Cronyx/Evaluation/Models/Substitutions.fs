@@ -110,6 +110,19 @@ module Substitutions =
         | _ ->
             raise (UnificationError (sprintf "Cannot unify %A with %A" t1 t2))
 
+    let constrain (subst: Substitution) (ty: MonoType) (expected: MonoType): Substitution =
+        unify (applySubstitutionToMonoType subst ty) expected
+
+    let constrainToOneOf (subst: Substitution) (ty: MonoType) (candidates: MonoType list) : Substitution * MonoType =
+        let rec loop = function
+            | [] -> raise (TypeError (sprintf "Type %A does not match any candidate" ty))
+            | cand::rest ->
+                try
+                    let s = constrain subst ty cand
+                    (s, cand)
+                with _ -> loop rest
+        loop candidates
+
     type State<'s,'a> = State of ('s -> 'a * 's)
 
     module State =

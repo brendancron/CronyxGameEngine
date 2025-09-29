@@ -8,8 +8,6 @@ open Cronyx.Evaluation.Models.Substitutions.State
 
 module Inference =
 
-    exception TypeError of string
-
     /// Hindley–Milner W algorithm
     let rec W (ctx: Context) (expr: Expr) : State<int, Substitution * MonoType> =
         state {
@@ -46,8 +44,7 @@ module Inference =
                 let ctx' = applySubstitutionToContext s1 ctx
                 let! (s2, t2) = W ctx' e2
                 let! alpha = freshTypeVar
-                let s3 = unify (applySubstitutionToMonoType s2 t1)
-                               (TypeFunctionApplication (Arrow (t2, alpha)))
+                let s3 = constrain s2 t1 (TypeFunctionApplication (Arrow (t2, alpha)))
                 let s = combine (combine s3 s2) s1
                 let t = applySubstitutionToMonoType s3 alpha
                 return (s, t)
@@ -61,6 +58,38 @@ module Inference =
                 let! (s2, t2) = W ctx'' e2
                 let s = combine s2 s1
                 return (s, t2)
+
+            | BinaryExpression (op, e1, e2) ->
+                return! inferBinOpType ctx op e1 e2
+        }
+
+    and inferBinOpType (ctx:Context) (op: BinOp) e1 e2: State<int, Substitution * MonoType> =
+        state {
+            match op with
+            | Add ->
+                let! (s1, t1) = W ctx e1
+                let ctx' = applySubstitutionToContext s1 ctx
+                let! (s2, t2) = W ctx' e2
+
+                let (s3, chosen) = constrainToOneOf s2 t1 [intType; floatType; stringType]
+                let s4 = constrain s3 t2 chosen
+
+                let s = combine (combine s4 s3) (combine s2 s1)
+                let t = chosen
+                return (s, t)
+            | Sub | Mul | Div ->
+                let! (s1, t1) = W ctx e1
+                let ctx' = applySubstitutionToContext s1 ctx
+                let! (s2, t2) = W ctx' e2
+
+                let (s3, chosen) = constrainToOneOf s2 t1 [intType; floatType]
+                let s4 = constrain s3 t2 chosen
+
+                let s = combine (combine s4 s3) (combine s2 s1)
+                let t = chosen
+                return (s, t)
+            | _ ->
+                return raise (TypeError (sprintf "Unsupported binary operator: %A" op))
         }
 
     /// Convenience wrapper
