@@ -53,10 +53,11 @@ let observers : IAnyObserver list =
 let add5 = AddAction(5)
 let sub3 = SubAction(3)
 
-let (s1, e1) = add5.Invoke(0, invertAndDouble)
-let (s2, e2) = sub3.Invoke(s1, invertAndDouble)
+let dispatchEvent (events: Event list) =
+    dispatch observers (List.map unwrap events)
+
+let (s1, e1) = add5.Invoke(0, invertAndDouble, dispatchEvent)
+let (s2, e2) = sub3.Invoke(s1, invertAndDouble, dispatchEvent)
 
 printfn "Final state: %d" s2
 printfn "Events: %A" (e1 @ e2)
-
-dispatch observers (List.map unwrap (e1 @ e2))
