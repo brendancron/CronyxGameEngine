@@ -1,23 +1,30 @@
 ﻿open Cronyx.Actions
 
+type AddEvent = { Amount : int }
+type SubEvent = { Amount : int }
+
+type Event =
+    | Add of AddEvent
+    | Sub of SubEvent
+
 type AddAction(amount: int) =
-    inherit ActionBase<int, string>()
+    inherit ActionBase<int, Event>()
     member _.Amount = amount
     override this.InvokeImpl(state) =
         let newState = state + this.Amount
-        let events = [ $"Added {this.Amount}" ]
+        let events = [ Add { Amount = this.Amount } ]
         (newState, events)
 
 
 type SubAction(amount: int) =
-    inherit ActionBase<int, string>()
+    inherit ActionBase<int, Event>()
     member _.Amount = amount
     override this.InvokeImpl(state) =
         let newState = state - this.Amount
-        let events = [ $"Subtracted {this.Amount}" ]
+        let events = [ Sub { Amount = this.Amount } ]
         (newState, events)
 
-let invertAndDouble (action: ActionBase<int, string>) : ActionBase<int, string> =
+let invertAndDouble (action: ActionBase<int, Event>) : ActionBase<int, Event> =
     match action with
     | :? SubAction as sub ->
         let subAmount = sub.Amount
