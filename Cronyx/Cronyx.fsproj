@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Utility -->
+    <Compile Include="Traversal.fs" />
+
+    <Compile Include="Modifiers.fs" />
+
     <Compile Include="Actions.fs" />
     <Compile Include="Events.fs" />
   </ItemGroup>

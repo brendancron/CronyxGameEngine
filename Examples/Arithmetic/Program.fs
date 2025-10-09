@@ -1,5 +1,6 @@
 ﻿open Cronyx.Actions
 open Cronyx.Events
+open Cronyx.Modifiers
 
 type AddEvent = { Amount : int }
 type SubEvent = { Amount : int }
@@ -30,13 +31,14 @@ type SubAction(amount: int) =
         let events = [ Sub { Amount = this.Amount } ]
         (newState, events)
 
-let invertAndDouble (action: ActionBase<int, Event>) : ActionBase<int, Event> =
-    match action with
-    | :? SubAction as sub ->
-        let subAmount = sub.Amount
-        AddAction(subAmount * 2)
-    | _ ->
-        action
+let invertAndDouble =
+    Modifier.ofStatic (fun (action: ActionBase<int, Event>) ->
+        match action with
+        | :? SubAction as sub ->
+            let subAmount = sub.Amount
+            AddAction(subAmount * 2)
+        | _ ->
+            action)
 
 type AddObserver() =
     interface IEventObserver<AddEvent> with
