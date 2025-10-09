@@ -10,7 +10,12 @@ module Events =
 
     type Observer<'E>(impl: IEventObserver<'E>) =
         interface IAnyObserver with
-            member _.TryHandle(evtObj: obj, state: State) =
+            member _.TryHandle(evtObj: obj) =
                 match evtObj with
-                | :? 'E as e -> impl.OnEvent e state; true
+                | :? 'E as e -> impl.OnEvent e; true
                 | _ -> false
+
+    let dispatch (observers: IAnyObserver list) (events: obj list) =
+        for evt in events do
+            for obs in observers do
+                obs.TryHandle(evt) |> ignore
