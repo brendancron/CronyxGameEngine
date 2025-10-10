@@ -56,6 +56,6 @@ module Actions =
                 initialState
                 this
                 (fun s a -> modifier |> Modifier.modify s a)
-                (fun a s -> this.InvokeImpl s)
+                (fun a s -> a.InvokeImpl s)
                 process_events
                 traversal_strategy
