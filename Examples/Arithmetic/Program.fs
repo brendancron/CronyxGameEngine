@@ -22,7 +22,6 @@ type AddAction(amount: int) =
         let events = [ Add { Amount = this.Amount } ]
         (newState, events)
 
-
 type SubAction(amount: int) =
     inherit ActionBase<int, Event>()
     member _.Amount = amount
@@ -55,11 +54,16 @@ let observers : IAnyObserver list =
 let add5 = AddAction(5)
 let sub3 = SubAction(3)
 
-let dispatchEvent (events: Event list) =
-    dispatch observers (List.map unwrap events)
+let processEvents (events: Event list) : ActionBase<int, Event> list =
+    events
+    |> List.iter (fun ev ->
+        match ev with
+        | Add e -> printfn "Processed Add %d" e.Amount
+        | Sub e -> printfn "Processed Sub %d" e.Amount)
+    []
 
-let (s1, e1) = add5.Invoke(0, invertAndDouble, dispatchEvent)
-let (s2, e2) = sub3.Invoke(s1, invertAndDouble, dispatchEvent)
+let (s1, e1) = add5.Invoke(0, invertAndDouble, processEvents, dfs)
+let (s2, e2) = sub3.Invoke(s1, invertAndDouble, processEvents, dfs)
 
 printfn "Final state: %d" s2
 printfn "Events: %A" (e1 @ e2)
