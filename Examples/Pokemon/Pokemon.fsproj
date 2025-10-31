@@ -8,6 +8,8 @@
   <ItemGroup>
     <Compile Include="Types.fs" />
     <Compile Include="Species.fs" />
+    <Compile Include="Mons.fs" />
+    <Compile Include="Moves.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
