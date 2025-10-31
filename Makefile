@@ -1,5 +1,12 @@
+E := $(word 2,$(MAKECMDGOALS))
+
+.PHONY: build run
+
 build:
 	dotnet build Cronyx/Cronyx.fsproj
 
-example-a:
-	dotnet run --project Examples/Arithmetic/Arithmetic.fsproj
+run:
+	dotnet run --project Examples/$(E)/$(E).fsproj
+
+%:
+	@:
