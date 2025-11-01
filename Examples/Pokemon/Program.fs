@@ -3,30 +3,40 @@
 open Types
 open Mons
 open Moves
+open States
 
 let squirtle: Species = {
     name = "squirtle"
-    hp = 44
-    atk = 50
-    def = 65
+    hp = 100
+    atk = 100
+    def = 100
     types = [ Water ]
 }
 
 let charmander: Species = {
     name = "charmander"
-    hp = 44
-    atk = 50
-    def = 65
+    hp = 100
+    atk = 100
+    def = 100
     types = [ Fire ]
 }
 
-let bubbles = init squirtle
-let scorch = init charmander
+let applyMoveAction moveAction userId targetId state =
+    match Map.tryFind userId state, Map.tryFind targetId state with
+    | Some user, Some target -> 
+        let u', t' = moveAction user target
+        state
+        |> Map.add userId u'
+        |> Map.add targetId t'
+    | _ -> state
 
-let s', b' = flamethrower { user = scorch; target = bubbles }
+let state : State = 
+    Map.ofList [
+        ("bubbles", init squirtle)
+        ("scorch", init charmander)
+    ]
 
-printfn "%A" bubbles 
-printfn "%A" scorch
+let state' = applyMoveAction flamethrower "scorch" "bubbles" state
 
-printfn "%A" b' 
-printfn "%A" s' 
+printfn "%A" state
+printfn "%A" state'

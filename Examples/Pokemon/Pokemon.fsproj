@@ -10,6 +10,7 @@
     <Compile Include="Species.fs" />
     <Compile Include="Mons.fs" />
     <Compile Include="Moves.fs" />
+    <Compile Include="States.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
